@@ -1,3 +1,4 @@
 (sym_lib_table
   (lib (name MCU_RaspberryPi_and_Boards)(type Legacy)(uri ${KIPRJMOD}/lib_includes/MCU_RaspberryPi_and_Boards.lib)(options "")(descr ""))
+  (lib (name WAGO_250)(type Legacy)(uri "${KIPRJMOD}/lib_includes/WAGO 250.lib")(options "")(descr ""))
 )
