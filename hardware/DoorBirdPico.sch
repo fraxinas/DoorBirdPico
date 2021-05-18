@@ -656,10 +656,10 @@ Wire Wire Line
 Connection ~ 10000 2750
 Connection ~ 10000 3100
 $Comp
-L Interface_UART:MAX3485 U2
+L Interface_UART:MAX3485 U40
 U 1 1 6160AB38
 P 9350 4550
-F 0 "U2" H 9350 5231 50  0000 C CNN
+F 0 "U40" H 9350 5231 50  0000 C CNN
 F 1 "MAX3485" H 9350 5140 50  0000 C CNN
 F 2 "Package_SO:SO-8_3.9x4.9mm_P1.27mm" H 9350 3850 50  0001 C CNN
 F 3 "https://datasheets.maximintegrated.com/en/ds/MAX3483-MAX3491.pdf" H 9350 4600 50  0001 C CNN
@@ -667,10 +667,10 @@ F 3 "https://datasheets.maximintegrated.com/en/ds/MAX3483-MAX3491.pdf" H 9350 46
 	1    0    0    -1  
 $EndComp
 $Comp
-L Connector:Conn_01x02_Male J6
+L Connector:Conn_01x02_Male J40
 U 1 1 6160BDF4
 P 10600 4150
-F 0 "J6" H 10708 4331 50  0000 C CNN
+F 0 "J40" H 10708 4331 50  0000 C CNN
 F 1 "RS485" H 10708 4240 50  0000 C CNN
 F 2 "footprints:250-202" H 10600 4150 50  0001 C CNN
 F 3 "~" H 10600 4150 50  0001 C CNN
@@ -680,7 +680,7 @@ $EndComp
 Wire Wire Line
 	10000 3800 10000 4000
 Wire Wire Line
-	10000 4000 9350 4000
+	10000 4000 9850 4000
 Wire Wire Line
 	9350 4000 9350 4050
 Connection ~ 10000 3800
@@ -738,13 +738,13 @@ Wire Wire Line
 	8650 4650 8950 4650
 Connection ~ 8650 4550
 Wire Wire Line
-	9750 4450 10100 4450
+	9750 4450 9850 4450
 Wire Wire Line
 	10100 4450 10100 4050
 Wire Wire Line
 	10100 4050 10400 4050
 Wire Wire Line
-	9750 4750 10200 4750
+	9750 4750 9850 4750
 Wire Wire Line
 	10200 4750 10200 4150
 Wire Wire Line
@@ -761,7 +761,7 @@ F 3 "" H 9350 5350 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
-	9350 5350 9350 5150
+	9350 5350 9350 5200
 Wire Wire Line
 	4850 3250 4850 2900
 Wire Wire Line
@@ -1218,6 +1218,69 @@ Wire Wire Line
 	10000 2550 10050 2550
 Wire Wire Line
 	10000 2550 10000 2750
+Text Notes 2600 2450 0    50   ~ 0
+Door
+Text Notes 2600 2650 0    50   ~ 0
+Post
+Text Notes 10650 2850 0    50   ~ 0
+Rel 2
+Text Notes 10650 2600 0    50   ~ 0
+Rel 1
+$Comp
+L Device:R R40
+U 1 1 60A7BBD1
+P 9850 4600
+F 0 "R40" V 9643 4600 50  0000 C CNN
+F 1 "120" V 9734 4600 50  0000 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder" V 9780 4600 50  0001 C CNN
+F 3 "~" H 9850 4600 50  0001 C CNN
+	1    9850 4600
+	-1   0    0    -1  
+$EndComp
+Connection ~ 9850 4450
+Wire Wire Line
+	9850 4450 10100 4450
+Connection ~ 9850 4750
+Wire Wire Line
+	9850 4750 10200 4750
+$Comp
+L Device:R R42
+U 1 1 60A7B8F7
+P 9850 4950
+F 0 "R42" V 9643 4950 50  0000 C CNN
+F 1 "12k" V 9734 4950 50  0000 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder" V 9780 4950 50  0001 C CNN
+F 3 "~" H 9850 4950 50  0001 C CNN
+	1    9850 4950
+	-1   0    0    -1  
+$EndComp
+$Comp
+L Device:R R41
+U 1 1 60A7B3FE
+P 9850 4250
+F 0 "R41" V 9643 4250 50  0000 C CNN
+F 1 "12k" V 9734 4250 50  0000 C CNN
+F 2 "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder" V 9780 4250 50  0001 C CNN
+F 3 "~" H 9850 4250 50  0001 C CNN
+	1    9850 4250
+	-1   0    0    -1  
+$EndComp
+Wire Wire Line
+	9850 4000 9850 4100
+Connection ~ 9850 4000
+Wire Wire Line
+	9850 4000 9350 4000
+Wire Wire Line
+	9850 4400 9850 4450
+Wire Wire Line
+	9850 4750 9850 4800
+Wire Wire Line
+	9850 5100 9850 5200
+Wire Wire Line
+	9850 5200 9350 5200
+Connection ~ 9350 5200
+Wire Wire Line
+	9350 5200 9350 5150
 $Comp
 L Connector:Conn_01x04_Male J4
 U 1 1 60B4DF88
@@ -1229,12 +1292,4 @@ F 3 "~" H 10600 2750 50  0001 C CNN
 	1    10600 2750
 	-1   0    0    1   
 $EndComp
-Text Notes 2600 2450 0    50   ~ 0
-Door
-Text Notes 2600 2650 0    50   ~ 0
-Post
-Text Notes 10650 2850 0    50   ~ 0
-Rel 2
-Text Notes 10650 2600 0    50   ~ 0
-Rel 1
 $EndSCHEMATC
