@@ -11,17 +11,23 @@
 #define UART_RX_PIN 1
 #define UART_INIT_SEQUENCE "MTT_14_001_001\r\n"
 
-#define PIN_A_KEY 5
-#define PIN_A_ANODE 6
+#define PIN_REED_DOOR 2
+#define PIN_REED_POST 3
+
+#define PIN_A_KEY 6
 #define PIN_A_BLUE 7
 #define PIN_A_GREEN 8
 #define PIN_A_RED 9
 
-#define PIN_B_KEY 10
-#define PIN_B_ANODE 11
+#define PIN_B_KEY 11
 #define PIN_B_BLUE 12
 #define PIN_B_GREEN 13
 #define PIN_B_RED 14
+
+#define PIN_C_KEY 22
+#define PIN_C_BLUE 21
+#define PIN_C_GREEN 20
+#define PIN_C_RED 19
 
 pwm_config pwm_conf;
 int fade_pins[2] = {-1, -1};
@@ -202,14 +208,6 @@ void on_pwm_wrap()
 
 int setup_pwm()
 {
-    gpio_init(PIN_A_ANODE);
-    gpio_set_dir(PIN_A_ANODE, GPIO_OUT);
-    gpio_put(PIN_A_ANODE, 1);
-
-    gpio_init(PIN_B_ANODE);
-    gpio_set_dir(PIN_B_ANODE, GPIO_OUT);
-    gpio_put(PIN_B_ANODE, 1);
-
     // Tell the LED pin that the PWM is in charge of its value.
     gpio_set_function(PIN_A_GREEN, GPIO_FUNC_PWM);
     pwm_set_gpio_level(PIN_A_GREEN, 0xE000);
