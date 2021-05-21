@@ -156,8 +156,16 @@ void key_callback(uint gpio, uint32_t events)
     }
 }
 
+void set_key_c_leaving()
+{
+    gpio_put(PIN_C_RED, 0);
+    gpio_put(PIN_C_GREEN, 0);
+    gpio_put(PIN_C_BLUE, 1);
+}
+
 void set_key_c_color()
 {
+    gpio_put(PIN_C_BLUE, 0);      
     if (lock_state == LOCK_LOCKED) {
       gpio_put(PIN_C_RED, 1);
       gpio_put(PIN_C_GREEN, 0);
@@ -183,8 +191,25 @@ void sensor_input(uint gpio, uint32_t events)
         switch (gpio)
         {
           case PIN_C_KEY:
-              uart_puts(uart0, "113#\r\n");
-              printf("Inside Button pressed\r\n");
+              if (lock_state != LOCK_UNLOCKED)
+              {
+                printf("Inside Button pressed while state=%s -> UNLOCK 112#\r\n", lock_state == LOCK_LOCKED ? "locked" : "unknown");
+                uart_puts(uart0, "112#\r\n");
+                break;
+              }
+              sleep_ms(1000);
+              bool long_pressed = gpio_get (PIN_RELAY_IN1);
+              if (long_pressed)
+              {
+                  printf("Inside Button pressed (long) -> UNLOCK immediately & send 113#\r\n");
+                  uart_puts(uart0, "113#\r\n");
+              } else {
+                  printf("Inside Button pressed (long) -> UNLOCK delayed ...");
+                  set_key_c_leaving();
+                  sleep_ms(15000);
+                  printf(" send 113#\r\n");
+                  uart_puts(uart0, "113#\r\n");
+              }
               break;
           case PIN_REED_POST:
               if (!rise) {
