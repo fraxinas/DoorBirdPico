@@ -11,7 +11,8 @@
 * hardware debouncing
 * power / UART communication with Doorbird D2100E
 * 2 input ports for the Doorbird relays
-* 1 potential-free relay output
+* 1 potential-free relay output (for door opener)
+* RS485 transceiver
 
 ## Software
 * using Rasperry Pi Pico C API
@@ -24,3 +25,4 @@
 | 2021-04-06 |         | Pico on Breadboard, pushbutton irq & pwm        | 
 | 2021-04-13 |         | Implemented UART communication with Doorbird    |
 | 2021-04-16 |         | Started git repository                          |
+| 2021-05-12 | v1.0    | Commission of 1st prototype PCB with aisler.net |
