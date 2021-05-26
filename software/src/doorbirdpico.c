@@ -176,18 +176,16 @@ void set_key_c_color()
     }
 }
 
+#define RisingEdge (events & GPIO_IRQ_EDGE_RISE)
+#define FallingEdge (events & GPIO_IRQ_EDGE_RISE)
+
 void sensor_input(uint gpio, uint32_t events)
 {
     gpio_event_string(event_str, events);
     printf("Sensor input port %d %s", gpio, event_str);
-     
-    bool rise = (events & 0x8);
-    
-    if (events & 0x8)
-    {
-        // Load the configuration into our PWM slice, and set it running.
-        int i, irq_pin;
 
+    if (events & GPIO_IRQ_EDGE_FALL|GPIO_IRQ_EDGE_RISE)
+    {
         switch (gpio)
         {
           case PIN_C_KEY:
@@ -212,20 +210,20 @@ void sensor_input(uint gpio, uint32_t events)
               }
               break;
           case PIN_REED_POST:
-              if (!rise) {
+              if (FallingEdge) {
                 uart_puts(uart0, "114#\r\n");
                 printf("Letterbox opened\r\n");
               }
               break;
           case PIN_REED_DOOR:
-              door_state = rise ? DOOR_CLOSED : DOOR_OPEN;
+              door_state = RisingEdge ? DOOR_CLOSED : DOOR_OPEN;
               printf("Reed toggle -> door_state = %s\r\n", door_state == DOOR_OPEN ? "OPENED" : "CLOSED");
               break;
           case PIN_RELAY_IN1:
-              if (!rise) {
+              if (FallingEdge) {
                 printf("Relay 1 falling -> Buzzer off!\r\n");
                 gpio_put(PIN_RELAY_OUT, 0);
-              } else { 
+              } else {
                 if (lock_state == LOCK_UNLOCKED) {
                   printf("Relay 1 rising -> Buzzer on!\r\n");
                   gpio_put(PIN_RELAY_OUT, 1);
@@ -235,7 +233,7 @@ void sensor_input(uint gpio, uint32_t events)
               }
               break;
           case PIN_RELAY_IN2:
-              lock_state = rise ? LOCK_LOCKED : LOCK_UNLOCKED;
+              lock_state = RisingEdge ? LOCK_LOCKED : LOCK_UNLOCKED;
               printf("Relay 2 toggle -> lock_state = %s\r\n", lock_state == LOCK_LOCKED ? "LOCKED" : "UNLOCKED");
               set_key_c_color();
               if (lock_state == LOCK_UNLOCKED && gpio_get (PIN_RELAY_IN1)) {
@@ -395,8 +393,8 @@ int main()
     setup_pwm();
     setup_uart();
 
-    // Everything after this point happens in the PWM interrupt handler, so we
-    // can twiddle our thumbs
+    // Everything after this point happens in the interrupt handlers,
+    // so we can chill here
     while (1)
         tight_loop_contents();
 }
