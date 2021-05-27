@@ -34,6 +34,10 @@
 #define PIN_RELAY_IN1 27
 #define PIN_RELAY_IN2 26
 
+#define LONG_PRESS_MS 800
+#define DELAY_LEAVING_LOCK_MS 15000
+#define DELAY_YELLOW_LOCK_MS 2500
+
 typedef enum {
   DOOR_UNKNOWN,
   DOOR_CLOSED,
@@ -163,17 +167,31 @@ void set_key_c_leaving()
     gpio_put(PIN_C_BLUE, 1);
 }
 
+int64_t set_key_c_color_alarm_callback(alarm_id_t id, void *user_data) { 
+    printf("set_key_c_color_alarm_callback(%d)\r\n", (int) id);
+    if (lock_state == LOCK_LOCKED) {
+      gpio_put(PIN_C_GREEN, 0);
+    } else {
+      gpio_put(PIN_C_RED, 0);
+    }
+    return 0;
+}
+
 void set_key_c_color()
 {
     gpio_put(PIN_C_BLUE, 0);      
     if (lock_state == LOCK_LOCKED) {
       gpio_put(PIN_C_RED, 1);
-      gpio_put(PIN_C_GREEN, 0);
     } else {
       gpio_put(PIN_C_GREEN, 1);
-      sleep_ms(1000);
-      gpio_put(PIN_C_RED, 0);
     }
+    add_alarm_in_ms(DELAY_YELLOW_LOCK_MS, set_key_c_color_alarm_callback, NULL, false);
+}
+
+int64_t delayed_lock_alarm_callback(alarm_id_t id, void *user_data) {
+    printf("...leaving_lock_alarm_callback(%d) send 113#\r\n", (int) id);
+    uart_puts(uart0, "113#\r\n");
+    return 0;
 }
 
 #define RisingEdge (events & GPIO_IRQ_EDGE_RISE)
@@ -195,18 +213,16 @@ void sensor_input(uint gpio, uint32_t events)
                 uart_puts(uart0, "112#\r\n");
                 break;
               }
-              sleep_ms(1000);
+              sleep_ms(LONG_PRESS_MS);
               bool long_pressed = gpio_get (PIN_RELAY_IN1);
               if (long_pressed)
               {
-                  printf("Inside Button pressed (long) -> UNLOCK immediately & send 113#\r\n");
+                  printf("Inside Button pressed (long) -> LOCK immediately & send 113#\r\n");
                   uart_puts(uart0, "113#\r\n");
               } else {
-                  printf("Inside Button pressed (long) -> UNLOCK delayed ...");
+                  printf("Inside Button pressed (long) -> LOCK delayed ...");
                   set_key_c_leaving();
-                  sleep_ms(15000);
-                  printf(" send 113#\r\n");
-                  uart_puts(uart0, "113#\r\n");
+                  add_alarm_in_ms(DELAY_LEAVING_LOCK_MS, delayed_lock_alarm_callback, NULL, false);
               }
               break;
           case PIN_REED_POST:
