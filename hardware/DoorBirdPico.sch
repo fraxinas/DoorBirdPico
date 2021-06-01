@@ -1292,4 +1292,8 @@ F 3 "~" H 10600 2750 50  0001 C CNN
 	1    10600 2750
 	-1   0    0    1   
 $EndComp
+Text Notes 2200 4550 0    61   ~ 0
+Br-W\nOr-W\nGr-W\nBl-W\nBlue\nGreen\nOrange\nBrown
+Text Notes 1800 4550 0    61   ~ 0
++\nOpen\nClose\nKey\nB-\nG-\nR-\n+
 $EndSCHEMATC
