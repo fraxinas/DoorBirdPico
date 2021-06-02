@@ -125,7 +125,7 @@ void key_callback(uint gpio, uint32_t events)
           case PIN_A_KEY:
               irq_pin = PIN_A_GREEN;
               uart_puts(uart0, "101#\r\n");
-              printf("Key B rang\r\n");
+              printf("Key A rang\r\n");
               i = 0;
               break;
           case PIN_B_KEY:
@@ -206,6 +206,13 @@ void sensor_input(uint gpio, uint32_t events)
     {
         switch (gpio)
         {
+          case PIN_A_KEY:
+          case PIN_B_KEY:
+              if (RisingEdge)
+              {
+                  key_callback(gpio, events);
+              }
+              break;
           case PIN_C_KEY:
               if (lock_state != LOCK_UNLOCKED)
               {
@@ -265,8 +272,8 @@ int setup_irq()
 {
     stdio_init_all();
     printf("Hello GPIO IRQ\n");
-    gpio_set_irq_enabled_with_callback(PIN_A_KEY, GPIO_IRQ_EDGE_RISE, true, &key_callback);
-    gpio_set_irq_enabled_with_callback(PIN_B_KEY, GPIO_IRQ_EDGE_RISE, true, &key_callback);
+    gpio_set_irq_enabled_with_callback(PIN_A_KEY, GPIO_IRQ_EDGE_RISE, true, &sensor_input);
+    gpio_set_irq_enabled_with_callback(PIN_B_KEY, GPIO_IRQ_EDGE_RISE, true, &sensor_input);
     gpio_set_irq_enabled_with_callback(PIN_C_KEY, GPIO_IRQ_EDGE_RISE, true, &sensor_input);
     gpio_set_irq_enabled_with_callback(PIN_REED_POST, GPIO_IRQ_EDGE_FALL|GPIO_IRQ_EDGE_RISE, true, &sensor_input);
     gpio_set_irq_enabled_with_callback(PIN_REED_DOOR, GPIO_IRQ_EDGE_FALL|GPIO_IRQ_EDGE_RISE, true, &sensor_input);
