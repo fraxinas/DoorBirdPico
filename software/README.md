@@ -39,3 +39,10 @@ sudo /path-to/picotool/build/picotool load doorbirdpico.uf2
 | 0x313032230D0A                     | 102#\r\n           | PICO -> Main | Button 2 pressed                    |
 | 0x313...230D0A                     | 1nn#\r\n           | PICO -> Main | Button n pressed                    |
 | 0x313134230D0A                     | 114#\r\n           | PICO -> Main | Button 14 pressed                   |
+
+## TODOs rev 0.2
+- [ ] Use 3V3 pin instead of Vsys
+- [ ] Silkscreen Reed Door / Post
+- [ ] Resistor values R1-R4
+- [ ] Fix mounting hole diameter
+- [ ] Fix C1
