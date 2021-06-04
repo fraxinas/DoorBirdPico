@@ -200,7 +200,7 @@ int64_t delayed_lock_alarm_callback(alarm_id_t id, void *user_data) {
 void sensor_input(uint gpio, uint32_t events)
 {
     gpio_event_string(event_str, events);
-    printf("Sensor input port %d %s", gpio, event_str);
+    printf("Sensor input port %d %s\t", gpio, event_str);
 
     if (events & GPIO_IRQ_EDGE_FALL|GPIO_IRQ_EDGE_RISE)
     {
@@ -240,7 +240,7 @@ void sensor_input(uint gpio, uint32_t events)
               break;
           case PIN_REED_DOOR:
               door_state = RisingEdge ? DOOR_CLOSED : DOOR_OPEN;
-              printf("Reed toggle -> door_state = %s\r\n", door_state == DOOR_OPEN ? "OPENED" : "CLOSED");
+              printf("Reed door toggle -> door_state = %s\r\n", door_state == DOOR_OPEN ? "OPENED" : "CLOSED");
               break;
           case PIN_RELAY_IN1:
               if (FallingEdge) {
@@ -348,6 +348,16 @@ int setup_gpio() {
     gpio_set_dir(PIN_C_BLUE, GPIO_OUT);
     gpio_set_dir(PIN_C_GREEN, GPIO_OUT);
     gpio_set_dir(PIN_C_RED, GPIO_OUT);
+
+    // GPIO26 & 27 are analog by default, need to be set to input explicitely in order for IRQ to work
+    gpio_set_input_enabled(PIN_RELAY_IN1, true);
+    gpio_set_input_enabled(PIN_RELAY_IN2, true);
+
+    gpio_pull_down(PIN_RELAY_IN1);
+    gpio_pull_down(PIN_RELAY_IN2);
+    gpio_pull_down(PIN_REED_DOOR);
+    gpio_pull_down(PIN_REED_POST);
+
     gpio_put(PIN_RELAY_OUT, 0);
     door_state = DOOR_UNKNOWN;
     lock_state = LOCK_UNKNOWN;
