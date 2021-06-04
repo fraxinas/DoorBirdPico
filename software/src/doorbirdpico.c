@@ -38,6 +38,8 @@
 #define DELAY_LEAVING_LOCK_MS 15000
 #define DELAY_YELLOW_LOCK_MS 2500
 
+#define PIN_STATUS 25
+
 typedef enum {
   DOOR_UNKNOWN,
   DOOR_CLOSED,
@@ -426,8 +428,15 @@ int main()
     setup_pwm();
     setup_uart();
 
+    gpio_put(PIN_STATUS, 1);
+
     // Everything after this point happens in the interrupt handlers,
     // so we can chill here
-    while (1)
+    while (1) {
+        gpio_put(PIN_STATUS, 1);
+        sleep_ms(250);
+        gpio_put(PIN_STATUS, 0);
+        sleep_ms(250);
         tight_loop_contents();
+    }
 }
