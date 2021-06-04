@@ -25,4 +25,11 @@
 | 2021-04-06 |         | Pico on Breadboard, pushbutton irq & pwm        | 
 | 2021-04-13 |         | Implemented UART communication with Doorbird    |
 | 2021-04-16 |         | Started git repository                          |
-| 2021-05-12 | v1.0    | Commission of 1st prototype PCB with aisler.net |
+| 2021-05-12 | v0.1    | Commission of 1st prototype PCB with aisler.net |
+
+## TODOs rev 0.2
+- [ ] Use 3V3 pin instead of Vsys
+- [ ] Silkscreen Reed Door / Post
+- [ ] Resistor values R1-R4
+- [ ] Fix mounting hole diameter
+- [ ] Fix C1
