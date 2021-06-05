@@ -12,7 +12,7 @@
 #define UART_INIT_SEQUENCE "MTT_14_001_001\r\n"
 
 #define PIN_REED_DOOR 2
-#define PIN_REED_POST 3
+#define PIN_REED_LETTER 3
 
 #define PIN_A_KEY 6
 #define PIN_A_BLUE 7
@@ -39,6 +39,12 @@
 #define DELAY_YELLOW_LOCK_MS 2500
 
 #define PIN_STATUS 25
+
+#define KEY_A_CODE "101#"
+#define KEY_B_CODE "102#"
+#define LOCK_CODE "103#"
+#define UNLOCK_CODE "104#"
+#define LETTER_CODE "105#"
 
 typedef enum
 {
@@ -94,6 +100,12 @@ void on_uart_rx()
     printf("UART error occured!\n");
 }
 
+void uart_send_code(char *code)
+{
+    uart_puts(uart0, code);
+    uart_puts(uart0, "\r\n");
+}
+
 void gpio_event_string(char *buf, uint32_t events)
 {
     for (uint i = 0; i < 4; i++)
@@ -133,13 +145,13 @@ void key_callback(uint gpio, uint32_t events)
         {
         case PIN_A_KEY:
             irq_pin = PIN_A_GREEN;
-            uart_puts(uart0, "101#\r\n");
+            uart_send_code(KEY_A_CODE);
             printf("Key A rang\r\n");
             i = 0;
             break;
         case PIN_B_KEY:
             irq_pin = PIN_B_BLUE;
-            uart_puts(uart0, "102#\r\n");
+            uart_send_code(KEY_B_CODE);
             printf("Key B rang\r\n");
             i = 1;
             break;
@@ -200,8 +212,9 @@ void set_key_c_color_yellow()
 
 int64_t delayed_lock_alarm_callback(alarm_id_t id, void *user_data)
 {
-    printf("...leaving_lock_alarm_callback(%d) send 113#\r\n", (int)id);
-    uart_puts(uart0, "113#\r\n");
+    printf("...leaving_lock_alarm_callback(%d) send %s\r\n", (int)id, LOCK_CODE);
+    uart_send_code(LOCK_CODE);
+    gpio_put(PIN_C_BLUE, 1);
     return 0;
 }
 
@@ -225,11 +238,11 @@ void sensor_input(uint gpio, uint32_t events)
             }
             break;
         case PIN_C_KEY:
+            printf("Lock toggle Button pressed while state=%s ", lock_state == LOCK_LOCKED ? "locked" : (lock_state == LOCK_UNLOCKED ? "unlocked" : "unknown"));
             if (lock_state != LOCK_UNLOCKED)
             {
-                printf("Inside Button pressed while state=%s -> UNLOCK 112#\r\n", lock_state == LOCK_LOCKED ? "locked" : "unknown");
-                sleep_ms(100);
-                uart_puts(uart0, "112#\r\n");
+                printf(" -> UNLOCK %s\r\n", UNLOCK_CODE);
+                uart_send_code(UNLOCK_CODE);
                 break;
             }
             //   sleep_ms(LONG_PRESS_MS);
@@ -239,15 +252,15 @@ void sensor_input(uint gpio, uint32_t events)
             //       printf("Inside Button pressed (long) -> LOCK immediately & send 113#\r\n");
             //       uart_puts(uart0, "113#\r\n");
             //   } else {
-            printf("Inside Button pressed (long) -> LOCK delayed ...");
+            printf(" -> LOCK delayed ...");
             set_key_c_leaving();
             add_alarm_in_ms(DELAY_LEAVING_LOCK_MS, delayed_lock_alarm_callback, NULL, false);
             //   }
             break;
-        case PIN_REED_POST:
+        case PIN_REED_LETTER:
             if (FallingEdge)
             {
-                uart_puts(uart0, "114#\r\n");
+                uart_send_code(LETTER_CODE);
                 printf("Letterbox opened\r\n");
             }
             break;
@@ -295,7 +308,7 @@ int setup_irq()
     gpio_set_irq_enabled_with_callback(PIN_A_KEY, GPIO_IRQ_EDGE_RISE, true, &sensor_input);
     gpio_set_irq_enabled_with_callback(PIN_B_KEY, GPIO_IRQ_EDGE_RISE, true, &sensor_input);
     gpio_set_irq_enabled_with_callback(PIN_C_KEY, GPIO_IRQ_EDGE_RISE, true, &sensor_input);
-    gpio_set_irq_enabled_with_callback(PIN_REED_POST, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &sensor_input);
+    gpio_set_irq_enabled_with_callback(PIN_REED_LETTER, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &sensor_input);
     gpio_set_irq_enabled_with_callback(PIN_REED_DOOR, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &sensor_input);
     gpio_set_irq_enabled_with_callback(PIN_RELAY_IN1, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &sensor_input);
     gpio_set_irq_enabled_with_callback(PIN_RELAY_IN2, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &sensor_input);
@@ -406,7 +419,7 @@ int setup_gpio()
     gpio_pull_down(PIN_RELAY_IN1);
     gpio_pull_down(PIN_RELAY_IN2);
     gpio_pull_down(PIN_REED_DOOR);
-    gpio_pull_down(PIN_REED_POST);
+    gpio_pull_down(PIN_REED_LETTER);
 
     gpio_put(PIN_RELAY_OUT, 0);
     door_state = DOOR_UNKNOWN;
