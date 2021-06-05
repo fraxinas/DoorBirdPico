@@ -40,16 +40,18 @@
 
 #define PIN_STATUS 25
 
-typedef enum {
-  DOOR_UNKNOWN,
-  DOOR_CLOSED,
-  DOOR_OPEN
+typedef enum
+{
+    DOOR_UNKNOWN,
+    DOOR_CLOSED,
+    DOOR_OPEN
 } door_state_t;
 
-typedef enum {
-  LOCK_UNKNOWN,
-  LOCK_LOCKED,
-  LOCK_UNLOCKED
+typedef enum
+{
+    LOCK_UNKNOWN,
+    LOCK_LOCKED,
+    LOCK_UNLOCKED
 } lock_state_t;
 
 door_state_t door_state;
@@ -66,16 +68,21 @@ static const char *gpio_irq_str[] = {
 
 static char event_str[128];
 
-void on_uart_rx() {
+void on_uart_rx()
+{
     printf("on_uart_rx... ");
-    while (uart_is_readable(UART_ID)) {
+    while (uart_is_readable(UART_ID))
+    {
         uint8_t ch = uart_getc(UART_ID);
         printf("0x%02X ", ch);
-        if (ch == 0x02) {
+        if (ch == 0x02)
+        {
             ch = uart_getc(UART_ID);
             printf("%02X\n", ch);
-            if (ch == 0x01) {
-                if (uart_is_writable(UART_ID)) {
+            if (ch == 0x01)
+            {
+                if (uart_is_writable(UART_ID))
+                {
                     printf("received startup bytes from Doorbird. Sending UART_INIT_SEQUENCE...\n");
                     uart_puts(uart0, UART_INIT_SEQUENCE);
                     printf("'%s' sent successfully!\n", UART_INIT_SEQUENCE);
@@ -124,40 +131,40 @@ void key_callback(uint gpio, uint32_t events)
 
         switch (gpio)
         {
-          case PIN_A_KEY:
-              irq_pin = PIN_A_GREEN;
-              uart_puts(uart0, "101#\r\n");
-              printf("Key A rang\r\n");
-              i = 0;
-              break;
-          case PIN_B_KEY:
-              irq_pin = PIN_B_BLUE;
-              uart_puts(uart0, "102#\r\n");
-              printf("Key B rang\r\n");
-              i = 1;
-              break;
+        case PIN_A_KEY:
+            irq_pin = PIN_A_GREEN;
+            uart_puts(uart0, "101#\r\n");
+            printf("Key A rang\r\n");
+            i = 0;
+            break;
+        case PIN_B_KEY:
+            irq_pin = PIN_B_BLUE;
+            uart_puts(uart0, "102#\r\n");
+            printf("Key B rang\r\n");
+            i = 1;
+            break;
         }
         fade_pins[i] = irq_pin;
-        printf("i=%d pin=%d",i, fade_pins[i]);
+        printf("i=%d pin=%d", i, fade_pins[i]);
 
         float divider = 4.;
 
         if (fade_pins[0] > 0 && fade_pins[1] > 0)
         {
-          // half time if both pins are fading
-           divider = 8.;
+            // half time if both pins are fading
+            divider = 8.;
         }
 
         printf(" start pwm divider %f", divider);
         // Set divider, reduces counter clock to sysclock/this value
         pwm_config_set_clkdiv(&pwm_conf, divider);
 
-        for (int i=0; i<2; i++)
+        for (int i = 0; i < 2; i++)
         {
-          if (fade_pins[i] > 0)
-          {
-             pwm_init(pwm_gpio_to_slice_num(fade_pins[i]), &pwm_conf, true);
-          }
+            if (fade_pins[i] > 0)
+            {
+                pwm_init(pwm_gpio_to_slice_num(fade_pins[i]), &pwm_conf, true);
+            }
         }
     }
 }
@@ -169,12 +176,16 @@ void set_key_c_leaving()
     gpio_put(PIN_C_BLUE, 0);
 }
 
-int64_t set_key_c_color_alarm_callback(alarm_id_t id, void *user_data) {
-    printf("set_key_c_color_alarm_callback(%d)\r\n", (int) id);
-    if (lock_state == LOCK_LOCKED) {
-      gpio_put(PIN_C_GREEN, 1);
-    } else {
-      gpio_put(PIN_C_RED, 1);
+int64_t set_key_c_color_alarm_callback(alarm_id_t id, void *user_data)
+{
+    printf("set_key_c_color_alarm_callback(%d)\r\n", (int)id);
+    if (lock_state == LOCK_LOCKED)
+    {
+        gpio_put(PIN_C_GREEN, 1);
+    }
+    else
+    {
+        gpio_put(PIN_C_RED, 1);
     }
     return 0;
 }
@@ -187,8 +198,9 @@ void set_key_c_color_yellow()
     add_alarm_in_ms(DELAY_YELLOW_LOCK_MS, set_key_c_color_alarm_callback, NULL, false);
 }
 
-int64_t delayed_lock_alarm_callback(alarm_id_t id, void *user_data) {
-    printf("...leaving_lock_alarm_callback(%d) send 113#\r\n", (int) id);
+int64_t delayed_lock_alarm_callback(alarm_id_t id, void *user_data)
+{
+    printf("...leaving_lock_alarm_callback(%d) send 113#\r\n", (int)id);
     uart_puts(uart0, "113#\r\n");
     return 0;
 }
@@ -201,25 +213,25 @@ void sensor_input(uint gpio, uint32_t events)
     gpio_event_string(event_str, events);
     printf("Sensor input port %d %s\t", gpio, event_str);
 
-    if (events & GPIO_IRQ_EDGE_FALL|GPIO_IRQ_EDGE_RISE)
+    if (events & GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE)
     {
         switch (gpio)
         {
-          case PIN_A_KEY:
-          case PIN_B_KEY:
-              if (RisingEdge)
-              {
-                  key_callback(gpio, events);
-              }
-              break;
-          case PIN_C_KEY:
-              if (lock_state != LOCK_UNLOCKED)
-              {
+        case PIN_A_KEY:
+        case PIN_B_KEY:
+            if (RisingEdge)
+            {
+                key_callback(gpio, events);
+            }
+            break;
+        case PIN_C_KEY:
+            if (lock_state != LOCK_UNLOCKED)
+            {
                 printf("Inside Button pressed while state=%s -> UNLOCK 112#\r\n", lock_state == LOCK_LOCKED ? "locked" : "unknown");
                 sleep_ms(100);
                 uart_puts(uart0, "112#\r\n");
                 break;
-              }
+            }
             //   sleep_ms(LONG_PRESS_MS);
             //   bool long_pressed = gpio_get (PIN_C_KEY);
             //   if (long_pressed)
@@ -227,43 +239,51 @@ void sensor_input(uint gpio, uint32_t events)
             //       printf("Inside Button pressed (long) -> LOCK immediately & send 113#\r\n");
             //       uart_puts(uart0, "113#\r\n");
             //   } else {
-                  printf("Inside Button pressed (long) -> LOCK delayed ...");
-                  set_key_c_leaving();
-                  add_alarm_in_ms(DELAY_LEAVING_LOCK_MS, delayed_lock_alarm_callback, NULL, false);
+            printf("Inside Button pressed (long) -> LOCK delayed ...");
+            set_key_c_leaving();
+            add_alarm_in_ms(DELAY_LEAVING_LOCK_MS, delayed_lock_alarm_callback, NULL, false);
             //   }
-              break;
-          case PIN_REED_POST:
-              if (FallingEdge) {
+            break;
+        case PIN_REED_POST:
+            if (FallingEdge)
+            {
                 uart_puts(uart0, "114#\r\n");
                 printf("Letterbox opened\r\n");
-              }
-              break;
-          case PIN_REED_DOOR:
-              door_state = RisingEdge ? DOOR_CLOSED : DOOR_OPEN;
-              printf("Reed door toggle -> door_state = %s\r\n", door_state == DOOR_OPEN ? "OPENED" : "CLOSED");
-              break;
-          case PIN_RELAY_IN1:
-              if (FallingEdge) {
+            }
+            break;
+        case PIN_REED_DOOR:
+            door_state = RisingEdge ? DOOR_CLOSED : DOOR_OPEN;
+            printf("Reed door toggle -> door_state = %s\r\n", door_state == DOOR_OPEN ? "OPENED" : "CLOSED");
+            break;
+        case PIN_RELAY_IN1:
+            if (FallingEdge)
+            {
                 printf("Relay 1 falling -> Buzzer off!\r\n");
                 gpio_put(PIN_RELAY_OUT, 0);
-              } else {
-                if (lock_state == LOCK_UNLOCKED) {
-                  printf("Relay 1 rising -> Buzzer on!\r\n");
-                  gpio_put(PIN_RELAY_OUT, 1);
-                } else {
-                  printf("Relay 1 rising but door is locked, waiting for unlock...\r\n");
+            }
+            else
+            {
+                if (lock_state == LOCK_UNLOCKED)
+                {
+                    printf("Relay 1 rising -> Buzzer on!\r\n");
+                    gpio_put(PIN_RELAY_OUT, 1);
                 }
-              }
-              break;
-          case PIN_RELAY_IN2:
-              lock_state = RisingEdge ? LOCK_LOCKED : LOCK_UNLOCKED;
-              printf("Relay 2 toggle -> lock_state = %s\r\n", lock_state == LOCK_LOCKED ? "LOCKED" : "UNLOCKED");
-              set_key_c_color_yellow();
-              if (lock_state == LOCK_UNLOCKED && gpio_get (PIN_RELAY_IN1)) {
+                else
+                {
+                    printf("Relay 1 rising but door is locked, waiting for unlock...\r\n");
+                }
+            }
+            break;
+        case PIN_RELAY_IN2:
+            lock_state = RisingEdge ? LOCK_LOCKED : LOCK_UNLOCKED;
+            printf("Relay 2 toggle -> lock_state = %s\r\n", lock_state == LOCK_LOCKED ? "LOCKED" : "UNLOCKED");
+            set_key_c_color_yellow();
+            if (lock_state == LOCK_UNLOCKED && gpio_get(PIN_RELAY_IN1))
+            {
                 printf("Door got unlocked & Relay 1 still on -> Buzzer on!\r\n");
                 gpio_put(PIN_RELAY_OUT, 1);
-              }
-              break;
+            }
+            break;
         }
     }
 }
@@ -275,10 +295,10 @@ int setup_irq()
     gpio_set_irq_enabled_with_callback(PIN_A_KEY, GPIO_IRQ_EDGE_RISE, true, &sensor_input);
     gpio_set_irq_enabled_with_callback(PIN_B_KEY, GPIO_IRQ_EDGE_RISE, true, &sensor_input);
     gpio_set_irq_enabled_with_callback(PIN_C_KEY, GPIO_IRQ_EDGE_RISE, true, &sensor_input);
-    gpio_set_irq_enabled_with_callback(PIN_REED_POST, GPIO_IRQ_EDGE_FALL|GPIO_IRQ_EDGE_RISE, true, &sensor_input);
-    gpio_set_irq_enabled_with_callback(PIN_REED_DOOR, GPIO_IRQ_EDGE_FALL|GPIO_IRQ_EDGE_RISE, true, &sensor_input);
-    gpio_set_irq_enabled_with_callback(PIN_RELAY_IN1, GPIO_IRQ_EDGE_FALL|GPIO_IRQ_EDGE_RISE, true, &sensor_input);
-    gpio_set_irq_enabled_with_callback(PIN_RELAY_IN2, GPIO_IRQ_EDGE_FALL|GPIO_IRQ_EDGE_RISE, true, &sensor_input);
+    gpio_set_irq_enabled_with_callback(PIN_REED_POST, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &sensor_input);
+    gpio_set_irq_enabled_with_callback(PIN_REED_DOOR, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &sensor_input);
+    gpio_set_irq_enabled_with_callback(PIN_RELAY_IN1, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &sensor_input);
+    gpio_set_irq_enabled_with_callback(PIN_RELAY_IN2, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &sensor_input);
 }
 
 void on_pwm_wrap()
@@ -287,63 +307,64 @@ void on_pwm_wrap()
     static bool going_up = true;
     static int count = 0;
 
-    for (int i=0; i<2; i++)
+    for (int i = 0; i < 2; i++)
     {
-      printf("w[%d]",i);
-      int irq_pin = fade_pins[i];
-      printf("=",irq_pin);
-      if (irq_pin < 0)
-        continue;
-      uint slice = pwm_gpio_to_slice_num(irq_pin);
-      // Clear the interrupt flag that brought us here
-      pwm_clear_irq(slice);
+        printf("w[%d]", i);
+        int irq_pin = fade_pins[i];
+        printf("=", irq_pin);
+        if (irq_pin < 0)
+            continue;
+        uint slice = pwm_gpio_to_slice_num(irq_pin);
+        // Clear the interrupt flag that brought us here
+        pwm_clear_irq(slice);
 
-      if (going_up)
-      {
-          ++fade;
-          if (fade > 255)
-          {
-              fade = 255;
-              going_up = false;
-              printf("switch to down\n");
-          }
-      }
-      else
-      {
-          --fade;
-          if (fade < 0)
-          {
-              fade = 0;
-              going_up = true;
-              printf("switch to up, count=%d\n", count);
-              if (++count == 5)
-              {
-                  count = 0;
-                  pwm_set_gpio_level(irq_pin, 0x2000);
-                  fade_pins[i] = -1;
-                  if (fade_pins[0] == -1 && fade_pins[0] == -1)
-                  {
-                     // when all fades finished, stop pwm
-                     printf("stop pwn\n");
-                     pwm_init(slice, &pwm_conf, false);
-                  }
-                  else if (fade_pins[0] == -1 || fade_pins[1] == -1)
-                  {
-                    slice = (i==0) ? pwm_gpio_to_slice_num(fade_pins[1]) : pwm_gpio_to_slice_num(fade_pins[0]);
-                    // regular speed if only one pin is fading
-                    pwm_config_set_clkdiv(&pwm_conf, 4.0f);
-                    pwm_init(slice, &pwm_conf, true);
-                  }
-              }
-          }
-      }
-      // Square the fade value to make the LED's brightness appear more linear
-      // Note this range matches with the wrap value
-      pwm_set_gpio_level(irq_pin, fade * fade);
+        if (going_up)
+        {
+            ++fade;
+            if (fade > 255)
+            {
+                fade = 255;
+                going_up = false;
+                printf("switch to down\n");
+            }
+        }
+        else
+        {
+            --fade;
+            if (fade < 0)
+            {
+                fade = 0;
+                going_up = true;
+                printf("switch to up, count=%d\n", count);
+                if (++count == 5)
+                {
+                    count = 0;
+                    pwm_set_gpio_level(irq_pin, 0x2000);
+                    fade_pins[i] = -1;
+                    if (fade_pins[0] == -1 && fade_pins[0] == -1)
+                    {
+                        // when all fades finished, stop pwm
+                        printf("stop pwn\n");
+                        pwm_init(slice, &pwm_conf, false);
+                    }
+                    else if (fade_pins[0] == -1 || fade_pins[1] == -1)
+                    {
+                        slice = (i == 0) ? pwm_gpio_to_slice_num(fade_pins[1]) : pwm_gpio_to_slice_num(fade_pins[0]);
+                        // regular speed if only one pin is fading
+                        pwm_config_set_clkdiv(&pwm_conf, 4.0f);
+                        pwm_init(slice, &pwm_conf, true);
+                    }
+                }
+            }
+        }
+        // Square the fade value to make the LED's brightness appear more linear
+        // Note this range matches with the wrap value
+        pwm_set_gpio_level(irq_pin, fade * fade);
     }
 }
 
-int setup_gpio() {
+int setup_gpio()
+{
     gpio_init_mask(
         1 << PIN_A_BLUE |
         1 << PIN_A_GREEN |
@@ -355,8 +376,7 @@ int setup_gpio() {
         1 << PIN_C_GREEN |
         1 << PIN_C_RED |
         1 << PIN_RELAY_OUT |
-        1 << PIN_STATUS
-        );
+        1 << PIN_STATUS);
     gpio_set_dir(PIN_RELAY_OUT, GPIO_OUT);
     gpio_set_dir(PIN_A_BLUE, GPIO_OUT);
     gpio_set_dir(PIN_A_GREEN, GPIO_OUT);
@@ -428,12 +448,12 @@ int setup_uart()
 {
     // Initialise UART 0
     uart_init(UART_ID, BAUD_RATE);
- 
+
     // Set the GPIO pin mux to the UART - 0 is TX, 1 is RX
     gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART);
-  
-     // Turn off FIFO's - we want to do this character by character
+
+    // Turn off FIFO's - we want to do this character by character
     uart_set_fifo_enabled(UART_ID, false);
 
     // Set up a RX interrupt
@@ -460,7 +480,8 @@ int main()
 
     // Everything after this point happens in the interrupt handlers,
     // so we can chill here
-    while (1) {
+    while (1)
+    {
         gpio_put(PIN_STATUS, 1);
         sleep_ms(250);
         gpio_put(PIN_STATUS, 0);
