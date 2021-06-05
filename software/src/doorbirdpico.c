@@ -164,29 +164,26 @@ void key_callback(uint gpio, uint32_t events)
 
 void set_key_c_leaving()
 {
-    gpio_put(PIN_C_RED, 0);
-    gpio_put(PIN_C_GREEN, 0);
-    gpio_put(PIN_C_BLUE, 1);
+    gpio_put(PIN_C_RED, 1);
+    gpio_put(PIN_C_GREEN, 1);
+    gpio_put(PIN_C_BLUE, 0);
 }
 
-int64_t set_key_c_color_alarm_callback(alarm_id_t id, void *user_data) { 
+int64_t set_key_c_color_alarm_callback(alarm_id_t id, void *user_data) {
     printf("set_key_c_color_alarm_callback(%d)\r\n", (int) id);
     if (lock_state == LOCK_LOCKED) {
-      gpio_put(PIN_C_GREEN, 0);
+      gpio_put(PIN_C_GREEN, 1);
     } else {
-      gpio_put(PIN_C_RED, 0);
+      gpio_put(PIN_C_RED, 1);
     }
     return 0;
 }
 
-void set_key_c_color()
+void set_key_c_color_yellow()
 {
-    gpio_put(PIN_C_BLUE, 0);      
-    if (lock_state == LOCK_LOCKED) {
-      gpio_put(PIN_C_RED, 1);
-    } else {
-      gpio_put(PIN_C_GREEN, 1);
-    }
+    gpio_put(PIN_C_BLUE, 1);
+    gpio_put(PIN_C_RED, 0);
+    gpio_put(PIN_C_GREEN, 0);
     add_alarm_in_ms(DELAY_YELLOW_LOCK_MS, set_key_c_color_alarm_callback, NULL, false);
 }
 
@@ -219,20 +216,21 @@ void sensor_input(uint gpio, uint32_t events)
               if (lock_state != LOCK_UNLOCKED)
               {
                 printf("Inside Button pressed while state=%s -> UNLOCK 112#\r\n", lock_state == LOCK_LOCKED ? "locked" : "unknown");
+                sleep_ms(100);
                 uart_puts(uart0, "112#\r\n");
                 break;
               }
-              sleep_ms(LONG_PRESS_MS);
-              bool long_pressed = gpio_get (PIN_RELAY_IN1);
-              if (long_pressed)
-              {
-                  printf("Inside Button pressed (long) -> LOCK immediately & send 113#\r\n");
-                  uart_puts(uart0, "113#\r\n");
-              } else {
+            //   sleep_ms(LONG_PRESS_MS);
+            //   bool long_pressed = gpio_get (PIN_C_KEY);
+            //   if (long_pressed)
+            //   {
+            //       printf("Inside Button pressed (long) -> LOCK immediately & send 113#\r\n");
+            //       uart_puts(uart0, "113#\r\n");
+            //   } else {
                   printf("Inside Button pressed (long) -> LOCK delayed ...");
                   set_key_c_leaving();
                   add_alarm_in_ms(DELAY_LEAVING_LOCK_MS, delayed_lock_alarm_callback, NULL, false);
-              }
+            //   }
               break;
           case PIN_REED_POST:
               if (FallingEdge) {
@@ -260,7 +258,7 @@ void sensor_input(uint gpio, uint32_t events)
           case PIN_RELAY_IN2:
               lock_state = RisingEdge ? LOCK_LOCKED : LOCK_UNLOCKED;
               printf("Relay 2 toggle -> lock_state = %s\r\n", lock_state == LOCK_LOCKED ? "LOCKED" : "UNLOCKED");
-              set_key_c_color();
+              set_key_c_color_yellow();
               if (lock_state == LOCK_UNLOCKED && gpio_get (PIN_RELAY_IN1)) {
                 printf("Door got unlocked & Relay 1 still on -> Buzzer on!\r\n");
                 gpio_put(PIN_RELAY_OUT, 1);
@@ -346,10 +344,40 @@ void on_pwm_wrap()
 }
 
 int setup_gpio() {
+    gpio_init_mask(
+        1 << PIN_A_BLUE |
+        1 << PIN_A_GREEN |
+        1 << PIN_A_RED |
+        1 << PIN_B_BLUE |
+        1 << PIN_B_GREEN |
+        1 << PIN_B_RED |
+        1 << PIN_C_BLUE |
+        1 << PIN_C_GREEN |
+        1 << PIN_C_RED |
+        1 << PIN_RELAY_OUT |
+        1 << PIN_STATUS
+        );
     gpio_set_dir(PIN_RELAY_OUT, GPIO_OUT);
+    gpio_set_dir(PIN_A_BLUE, GPIO_OUT);
+    gpio_set_dir(PIN_A_GREEN, GPIO_OUT);
+    gpio_set_dir(PIN_A_RED, GPIO_OUT);
+    gpio_set_dir(PIN_B_BLUE, GPIO_OUT);
+    gpio_set_dir(PIN_B_GREEN, GPIO_OUT);
+    gpio_set_dir(PIN_B_RED, GPIO_OUT);
     gpio_set_dir(PIN_C_BLUE, GPIO_OUT);
     gpio_set_dir(PIN_C_GREEN, GPIO_OUT);
     gpio_set_dir(PIN_C_RED, GPIO_OUT);
+    gpio_set_dir(PIN_STATUS, GPIO_OUT);
+
+    gpio_put(PIN_A_BLUE, 1);
+    gpio_put(PIN_A_GREEN, 1);
+    gpio_put(PIN_A_RED, 1);
+    gpio_put(PIN_B_BLUE, 1);
+    gpio_put(PIN_B_GREEN, 1);
+    gpio_put(PIN_B_RED, 1);
+    gpio_put(PIN_C_BLUE, 1);
+    gpio_put(PIN_C_GREEN, 1);
+    gpio_put(PIN_C_RED, 1);
 
     // GPIO26 & 27 are analog by default, need to be set to input explicitely in order for IRQ to work
     gpio_set_input_enabled(PIN_RELAY_IN1, true);
@@ -369,10 +397,10 @@ int setup_pwm()
 {
     // Tell the LED pin that the PWM is in charge of its value.
     gpio_set_function(PIN_A_GREEN, GPIO_FUNC_PWM);
-    pwm_set_gpio_level(PIN_A_GREEN, 0xE000);
+    pwm_set_gpio_level(PIN_A_GREEN, 0x4000);
 
-    gpio_set_function(PIN_B_BLUE, GPIO_FUNC_PWM);
-    pwm_set_gpio_level(PIN_B_BLUE, 0xE000);
+    // gpio_set_function(PIN_B_BLUE, GPIO_FUNC_PWM);
+    // pwm_set_gpio_level(PIN_B_BLUE, 0xE000);
 
     uint slice_num;
 
