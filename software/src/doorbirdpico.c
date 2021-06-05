@@ -46,6 +46,8 @@
 #define UNLOCK_CODE "104#"
 #define LETTER_CODE "105#"
 
+#define DEBOUNCE_MS 15
+
 typedef enum
 {
     DOOR_UNKNOWN,
@@ -223,10 +225,17 @@ int64_t delayed_lock_alarm_callback(alarm_id_t id, void *user_data)
 
 void sensor_input(uint gpio, uint32_t events)
 {
+    static uint32_t last_irq_ts = 0;
+    uint32_t now = time_us_32();
+
     gpio_event_string(event_str, events);
     printf("Sensor input port %d %s\t", gpio, event_str);
 
-    if (events & GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE)
+    if (now - last_irq_ts < DEBOUNCE_MS * 1000)
+    {
+        printf("ignore bounce %lu ms\r\n", now - last_irq_ts);
+    }
+    else if (events & GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE)
     {
         switch (gpio)
         {
@@ -299,6 +308,8 @@ void sensor_input(uint gpio, uint32_t events)
             break;
         }
     }
+
+    last_irq_ts = now;
 }
 
 int setup_irq()
