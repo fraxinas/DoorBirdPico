@@ -30,6 +30,9 @@
 | 2021-04-13 |         | Implemented UART communication with Doorbird    |
 | 2021-04-16 |         | Started git repository                          |
 | 2021-05-12 | v0.1    | Commission of 1st prototype PCB with aisler.net |
+| 2021-06-02 | v0.1    | Received prototype PCB                          |
+| 2021-06-04 | v0.1    | Assembling of prototype PCB                     |
+| 2021-06-06 | v0.2    | Software is essentially ready                   |
 
 ## TODOs rev 0.2
 
