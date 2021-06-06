@@ -57,10 +57,22 @@ typedef enum
 
 typedef enum
 {
-    LOCK_UNKNOWN,
-    LOCK_LOCKED,
-    LOCK_UNLOCKED
+    LOCK_S_UNKNOWN,
+    LOCK_S_LOCKED,
+    LOCK_S_UNLOCKED
 } lock_state_t;
+
+typedef enum
+{
+    LOCK_A_OFF,
+    LOCK_A_LOCKING,
+    LOCK_A_LOCKED,
+    LOCK_A_LEAVING,
+    LOCK_A_UNLOCKING,
+    LOCK_A_UNLOCKED,
+    LOCK_A_ACTUATED,
+    LOCK_A_PRESSED,
+} lock_action_t;
 
 door_state_t door_state;
 lock_state_t lock_state;
@@ -183,40 +195,101 @@ void key_callback(uint gpio, uint32_t events)
     }
 }
 
-void set_key_c_leaving()
+void set_key_c_color(lock_action_t action)
 {
-    gpio_put(PIN_C_RED, 1);
-    gpio_put(PIN_C_GREEN, 1);
-    gpio_put(PIN_C_BLUE, 0);
+    bool r, g, b = 1;
+
+    switch (action)
+    {
+    case LOCK_A_OFF: // black
+        r = 1;
+        g = 1;
+        b = 1;
+        break;
+    case LOCK_A_LOCKING: // purple
+        r = 0;
+        g = 1;
+        b = 0;
+        break;
+    case LOCK_A_LOCKED: // red
+        r = 0;
+        g = 1;
+        b = 1;
+        break;
+    case LOCK_A_LEAVING: // blue
+        r = 1;
+        g = 1;
+        b = 0;
+        break;
+    case LOCK_A_UNLOCKING: // cyan
+        r = 1;
+        g = 0;
+        b = 0;
+        break;
+    case LOCK_A_UNLOCKED: // green
+        r = 1;
+        g = 0;
+        b = 1;
+        break;
+    case LOCK_A_ACTUATED: // yellow
+        r = 0;
+        g = 0;
+        b = 1;
+        break;
+    case LOCK_A_PRESSED: // white
+        r = 0;
+        g = 0;
+        b = 0;
+        break;
+    default:
+        break;
+    }
+    gpio_put(PIN_C_RED, r);
+    gpio_put(PIN_C_GREEN, g);
+    gpio_put(PIN_C_BLUE, b);
 }
 
-int64_t set_key_c_color_alarm_callback(alarm_id_t id, void *user_data)
+int64_t set_key_c_color_alarm_cb(alarm_id_t id, void *user_data)
 {
-    printf("set_key_c_color_alarm_callback(%d)\r\n", (int)id);
-    if (lock_state == LOCK_LOCKED)
+    printf("set_key_c_color_alarm_cb(%d)\r\n", (int)id);
+    if (lock_state == LOCK_S_LOCKED)
     {
-        gpio_put(PIN_C_GREEN, 1);
+        set_key_c_color(LOCK_A_LOCKED);
     }
     else
     {
-        gpio_put(PIN_C_RED, 1);
+        set_key_c_color(LOCK_A_UNLOCKED);
     }
     return 0;
 }
 
-void set_key_c_color_yellow()
+int64_t delayed_lock_alarm_cb(alarm_id_t id, void *user_data)
 {
-    gpio_put(PIN_C_BLUE, 1);
-    gpio_put(PIN_C_RED, 0);
-    gpio_put(PIN_C_GREEN, 0);
-    add_alarm_in_ms(DELAY_YELLOW_LOCK_MS, set_key_c_color_alarm_callback, NULL, false);
+    printf("...delayed_lock_alarm_cb(%d) send %s\r\n", (int)id, LOCK_CODE);
+    set_key_c_color(LOCK_A_OFF);
+    uart_send_code(LOCK_CODE);
+    return 0;
 }
 
-int64_t delayed_lock_alarm_callback(alarm_id_t id, void *user_data)
+int64_t lock_key_pressed_cb(alarm_id_t id, void *user_data)
 {
-    printf("...leaving_lock_alarm_callback(%d) send %s\r\n", (int)id, LOCK_CODE);
-    uart_send_code(LOCK_CODE);
-    gpio_put(PIN_C_BLUE, 1);
+    printf("...lock_key_pressed_cb(%d) ", (int)id);
+
+    bool long_pressed = gpio_get(PIN_C_KEY);
+
+    if (long_pressed)
+    {
+        printf("LONG pressed -> LOCK immediately (send %s)\r\n", LOCK_CODE);
+        uart_send_code(LOCK_CODE);
+        set_key_c_color(LOCK_A_LOCKING);
+    }
+    else
+    {
+        printf("short pressed -> LOCK delayed ");
+        set_key_c_color(LOCK_A_LEAVING);
+        add_alarm_in_ms(DELAY_LEAVING_LOCK_MS, delayed_lock_alarm_cb, NULL, false);
+    }
+
     return 0;
 }
 
@@ -249,30 +322,24 @@ void sensor_input(uint gpio, uint32_t events)
             }
             break;
         case PIN_C_KEY:
-            printf("Lock toggle Button pressed while state=%s ", lock_state == LOCK_LOCKED ? "locked" : (lock_state == LOCK_UNLOCKED ? "unlocked" : "unknown"));
-            if (lock_state != LOCK_UNLOCKED)
+            printf("Lock toggle Button pressed while state=%s ", lock_state == LOCK_S_LOCKED ? "locked" : (lock_state == LOCK_S_UNLOCKED ? "unlocked" : "unknown"));
+            if (lock_state != LOCK_S_UNLOCKED)
             {
-                printf(" -> UNLOCK %s\r\n", UNLOCK_CODE);
+                printf(" -> UNLOCK (send %s)\r\n", UNLOCK_CODE);
+                set_key_c_color(LOCK_A_UNLOCKING);
                 uart_send_code(UNLOCK_CODE);
-                break;
             }
-            //   sleep_ms(LONG_PRESS_MS);
-            //   bool long_pressed = gpio_get (PIN_C_KEY);
-            //   if (long_pressed)
-            //   {
-            //       printf("Inside Button pressed (long) -> LOCK immediately & send 113#\r\n");
-            //       uart_puts(uart0, "113#\r\n");
-            //   } else {
-            printf(" -> LOCK delayed ...");
-            set_key_c_leaving();
-            add_alarm_in_ms(DELAY_LEAVING_LOCK_MS, delayed_lock_alarm_callback, NULL, false);
-            //   }
+            else
+            {
+                set_key_c_color(LOCK_A_PRESSED);
+                add_alarm_in_ms(LONG_PRESS_MS, lock_key_pressed_cb, NULL, false);
+            }
             break;
         case PIN_REED_LETTER:
             if (FallingEdge)
             {
+                printf("Letterbox opened (send %s)\r\n", LETTER_CODE);
                 uart_send_code(LETTER_CODE);
-                printf("Letterbox opened\r\n");
             }
             break;
         case PIN_REED_DOOR:
@@ -287,7 +354,7 @@ void sensor_input(uint gpio, uint32_t events)
             }
             else
             {
-                if (lock_state == LOCK_UNLOCKED)
+                if (lock_state == LOCK_S_UNLOCKED)
                 {
                     printf("Relay 1 rising -> Buzzer on!\r\n");
                     gpio_put(PIN_RELAY_OUT, 1);
@@ -299,10 +366,12 @@ void sensor_input(uint gpio, uint32_t events)
             }
             break;
         case PIN_RELAY_IN2:
-            lock_state = RisingEdge ? LOCK_LOCKED : LOCK_UNLOCKED;
-            printf("Relay 2 toggle -> lock_state = %s\r\n", lock_state == LOCK_LOCKED ? "LOCKED" : "UNLOCKED");
-            set_key_c_color_yellow();
-            if (lock_state == LOCK_UNLOCKED && gpio_get(PIN_RELAY_IN1))
+            lock_state = RisingEdge ? LOCK_S_LOCKED : LOCK_S_UNLOCKED;
+            printf("Relay 2 toggle -> lock_state = %s\r\n", lock_state == LOCK_S_LOCKED ? "LOCKED" : "UNLOCKED");
+            set_key_c_color(LOCK_A_ACTUATED);
+            add_alarm_in_ms(DELAY_YELLOW_LOCK_MS, set_key_c_color_alarm_cb, NULL, false);
+
+            if (lock_state == LOCK_S_UNLOCKED && gpio_get(PIN_RELAY_IN1))
             {
                 printf("Door got unlocked & Relay 1 still on -> Buzzer on!\r\n");
                 gpio_put(PIN_RELAY_OUT, 1);
@@ -310,7 +379,6 @@ void sensor_input(uint gpio, uint32_t events)
             break;
         }
     }
-
     last_irq_ts = now;
 }
 
@@ -421,9 +489,8 @@ int setup_gpio()
     gpio_put(PIN_B_BLUE, 1);
     gpio_put(PIN_B_GREEN, 1);
     gpio_put(PIN_B_RED, 1);
-    gpio_put(PIN_C_BLUE, 1);
-    gpio_put(PIN_C_GREEN, 1);
-    gpio_put(PIN_C_RED, 1);
+
+    set_key_c_color(LOCK_A_OFF);
 
     // GPIO26 & 27 are analog by default, need to be set to input explicitely in order for IRQ to work
     gpio_set_input_enabled(PIN_RELAY_IN1, true);
@@ -436,7 +503,7 @@ int setup_gpio()
 
     gpio_put(PIN_RELAY_OUT, 0);
     door_state = DOOR_UNKNOWN;
-    lock_state = LOCK_UNKNOWN;
+    lock_state = LOCK_S_UNKNOWN;
 }
 
 int setup_pwm()
