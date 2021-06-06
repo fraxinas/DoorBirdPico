@@ -1005,9 +1005,6 @@ F 3 "~" H 4100 4350 50  0001 C CNN
 	0    -1   -1   0   
 $EndComp
 Wire Wire Line
-	3650 2950 3150 2950
-Connection ~ 3150 2950
-Wire Wire Line
 	4600 2650 4600 2500
 $Comp
 L Device:C C2
@@ -1085,9 +1082,6 @@ Wire Wire Line
 	4750 2800 5750 2800
 Wire Wire Line
 	5750 2800 5750 3300
-Connection ~ 3650 2750
-Wire Wire Line
-	3650 2750 3650 2950
 Connection ~ 3650 2350
 Wire Wire Line
 	3650 2200 3650 2350
@@ -1302,10 +1296,21 @@ Wire Wire Line
 	8300 1600 8300 2500
 Connection ~ 7850 2500
 Wire Wire Line
-	3650 2550 3650 2350
+	3650 2350 3650 2750
 Wire Wire Line
-	3650 2550 3650 2750
-Connection ~ 3650 2550
+	4150 2650 4150 2550
+$Comp
+L power:+3.3V #PWR?
+U 1 1 60E291F0
+P 3150 2900
+F 0 "#PWR?" H 3150 2750 50  0001 C CNN
+F 1 "+3.3V" H 3092 2937 50  0000 R CNN
+F 2 "" H 3150 2900 50  0001 C CNN
+F 3 "" H 3150 2900 50  0001 C CNN
+	1    3150 2900
+	1    0    0    -1  
+$EndComp
 Wire Wire Line
-	3650 2550 4150 2550
+	3150 2900 3150 2950
+Connection ~ 3150 2950
 $EndSCHEMATC
