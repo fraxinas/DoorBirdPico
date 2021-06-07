@@ -36,7 +36,8 @@
 
 #define LONG_PRESS_MS 800
 #define DELAY_LEAVING_LOCK_MS 15000
-#define DELAY_YELLOW_LOCK_MS 2500
+#define DELAY_ACTUATED_LOCK_MS 2500
+#define BUZZER_MS 5000
 
 #define PIN_STATUS 25
 
@@ -47,6 +48,8 @@
 #define LETTER_CODE "105#"
 
 #define DEBOUNCE_MS 15
+
+#define DO_UNLOCK_ON_OPEN false
 
 typedef enum
 {
@@ -59,7 +62,8 @@ typedef enum
 {
     LOCK_S_UNKNOWN,
     LOCK_S_LOCKED,
-    LOCK_S_UNLOCKED
+    LOCK_S_UNLOCKED,
+    LOCK_S_WAITING_FOR_UNLOCK,
 } lock_state_t;
 
 typedef enum
@@ -79,14 +83,12 @@ lock_state_t lock_state;
 pwm_config pwm_conf;
 int fade_pins[2] = {-1, -1};
 
-static const char *gpio_irq_str[] = {
-    "LEVEL_LOW",  // 0x1
-    "LEVEL_HIGH", // 0x2
-    "EDGE_FALL",  // 0x4
-    "EDGE_RISE"   // 0x8
+static const char *lock_state_str[] = {
+    "UNKNOWN",
+    "LOCKED",
+    "UNLOCKED",
+    "WAITING_FOR_UNLOCK",
 };
-
-static char event_str[128];
 
 void on_uart_rx()
 {
@@ -120,36 +122,9 @@ void uart_send_code(char *code)
     uart_puts(uart0, "\r\n");
 }
 
-void gpio_event_string(char *buf, uint32_t events)
-{
-    for (uint i = 0; i < 4; i++)
-    {
-        uint mask = (1 << i);
-        if (events & mask)
-        {
-            // Copy this event string into the user string
-            const char *event_str = gpio_irq_str[i];
-            while (*event_str != '\0')
-            {
-                *buf++ = *event_str++;
-            }
-            events &= ~mask;
-
-            // If more events add ", "
-            if (events)
-            {
-                *buf++ = ',';
-                *buf++ = ' ';
-            }
-        }
-    }
-    *buf++ = '\0';
-}
-
 void key_callback(uint gpio, uint32_t events)
 {
-    gpio_event_string(event_str, events);
-    printf("GPIO KEY %d %s ", gpio, event_str);
+    printf("key_callback(%d, %02X)", gpio, events);
     if (events & 0x8)
     {
         // Load the configuration into our PWM slice, and set it running.
@@ -249,17 +224,37 @@ void set_key_c_color(lock_action_t action)
     gpio_put(PIN_C_BLUE, b);
 }
 
-int64_t set_key_c_color_alarm_cb(alarm_id_t id, void *user_data)
+int64_t buzzer_alarm_cb(alarm_id_t id, void *user_data)
 {
-    printf("set_key_c_color_alarm_cb(%d)\r\n", (int)id);
-    if (lock_state == LOCK_S_LOCKED)
+    printf("buzzer_alarm_cb -> Buzzer off!\r\n");
+    gpio_put(PIN_RELAY_OUT, 0);
+    return 0;
+}
+
+int64_t actuated_lock_alarm_cb(alarm_id_t id, void *user_data)
+{
+    lock_state_t new_state = gpio_get(PIN_RELAY_IN2) ? LOCK_S_LOCKED : LOCK_S_UNLOCKED;
+    printf("actuated_lock_alarm_cb -> new_state: %s\r\n", lock_state_str[new_state]);
+    if (new_state == LOCK_S_LOCKED)
     {
         set_key_c_color(LOCK_A_LOCKED);
     }
-    else
+    else if (new_state == LOCK_S_UNLOCKED)
     {
         set_key_c_color(LOCK_A_UNLOCKED);
+        if (gpio_get(PIN_RELAY_IN1))
+        {
+            printf("Door got unlocked & Relay 1 still on -> Buzzer on!\r\n");
+            gpio_put(PIN_RELAY_OUT, 1);
+        }
+        if (lock_state == LOCK_S_WAITING_FOR_UNLOCK)
+        {
+            printf("Door got unlocked while waiting -> Buzzer on for %d ms!\r\n", BUZZER_MS);
+            gpio_put(PIN_RELAY_OUT, 1);
+            add_alarm_in_ms(BUZZER_MS, buzzer_alarm_cb, NULL, false);
+        }
     }
+    lock_state = new_state;
     return 0;
 }
 
@@ -298,19 +293,13 @@ void sensor_input(uint gpio, uint32_t events)
     static uint32_t last_irq_ts = 0;
     uint32_t now = time_us_32();
 
-    gpio_event_string(event_str, events);
-    printf("Sensor input port %d %s events=%02X ...", gpio, event_str, events);
-
-    if (now - last_irq_ts < DEBOUNCE_MS * 1000)
+    if (now - last_irq_ts > DEBOUNCE_MS * 1000)
     {
-        printf(" ignore bounce (%lu ms)\r\n", now - last_irq_ts);
-    }
-    else if (events & GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE)
-    {
+        printf("sensor_input(%d, %02X) ...", gpio, events);
         busy_wait_us(1000);
         bool RisingEdge = gpio_get(gpio);
         bool FallingEdge = !RisingEdge;
-        printf(" detected %s\t", RisingEdge ? "RisingEdge" : "FallingEdge");
+        printf(" is %s\t", RisingEdge ? "RisingEdge" : "FallingEdge");
 
         switch (gpio)
         {
@@ -322,7 +311,7 @@ void sensor_input(uint gpio, uint32_t events)
             }
             break;
         case PIN_C_KEY:
-            printf("Lock toggle Button pressed while state=%s ", lock_state == LOCK_S_LOCKED ? "locked" : (lock_state == LOCK_S_UNLOCKED ? "unlocked" : "unknown"));
+            printf("lock toggle pressed in state %s ", lock_state_str[lock_state]);
             if (lock_state != LOCK_S_UNLOCKED)
             {
                 printf(" -> UNLOCK (send %s)\r\n", UNLOCK_CODE);
@@ -361,21 +350,26 @@ void sensor_input(uint gpio, uint32_t events)
                 }
                 else
                 {
-                    printf("Relay 1 rising but door is locked, waiting for unlock...\r\n");
+                    printf("Relay 1 rising while in LOCKED ");
+                    if (DO_UNLOCK_ON_OPEN)
+                    {
+                        printf(" -> UNLOCK (send %s)...\r\n", UNLOCK_CODE);
+                        set_key_c_color(LOCK_A_UNLOCKING);
+                        uart_send_code(UNLOCK_CODE);
+                    }
+                    else
+                    {
+                        printf(" -> waiting for unlocked...\r\n");
+                        lock_state = LOCK_S_WAITING_FOR_UNLOCK;
+                        set_key_c_color(LOCK_A_LEAVING);
+                    }
                 }
             }
             break;
         case PIN_RELAY_IN2:
-            lock_state = RisingEdge ? LOCK_S_LOCKED : LOCK_S_UNLOCKED;
-            printf("Relay 2 toggle -> lock_state = %s\r\n", lock_state == LOCK_S_LOCKED ? "LOCKED" : "UNLOCKED");
+            printf("Relay 2 toggle (previous state: %s) -> ", lock_state_str[lock_state]);
             set_key_c_color(LOCK_A_ACTUATED);
-            add_alarm_in_ms(DELAY_YELLOW_LOCK_MS, set_key_c_color_alarm_cb, NULL, false);
-
-            if (lock_state == LOCK_S_UNLOCKED && gpio_get(PIN_RELAY_IN1))
-            {
-                printf("Door got unlocked & Relay 1 still on -> Buzzer on!\r\n");
-                gpio_put(PIN_RELAY_OUT, 1);
-            }
+            add_alarm_in_ms(DELAY_ACTUATED_LOCK_MS, actuated_lock_alarm_cb, NULL, false);
             break;
         }
     }
