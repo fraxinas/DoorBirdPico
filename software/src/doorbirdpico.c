@@ -49,6 +49,8 @@
 
 #define DEBOUNCE_MS 15
 
+#define MAX_PWM_LEDS 6
+
 #define DO_UNLOCK_ON_OPEN false
 
 typedef enum
@@ -77,11 +79,6 @@ typedef enum
     LOCK_A_ACTUATED,
     LOCK_A_PRESSED,
 } lock_action_t;
-
-door_state_t door_state;
-lock_state_t lock_state;
-pwm_config pwm_conf;
-int fade_pins[2] = {-1, -1};
 
 static const char *lock_state_str[] = {
     "UNKNOWN",
@@ -125,6 +122,20 @@ const uint16_t pwm_gamma[] = {
    4543,    3908,    3267,    2623,    1974,    1320,    662,    0
 };
 
+typedef struct pwm_led {
+    bool active;
+    uint key_in;
+    uint led_out;
+    uint8_t idle_value;
+    uint8_t fade;
+    uint8_t count;
+} pwm_led_t;
+
+door_state_t door_state;
+lock_state_t lock_state;
+pwm_config pwm_conf;
+pwm_led_t pwm_leds[MAX_PWM_LEDS];
+
 void on_uart_rx()
 {
     printf("on_uart_rx... ");
@@ -157,51 +168,134 @@ void uart_send_code(char *code)
     uart_puts(uart0, "\r\n");
 }
 
-void key_callback(uint gpio, uint32_t events)
+void key_callback(uint gpio)
 {
-    printf("key_callback(%d, %02X)", gpio, events);
-    if (events & 0x8)
-    {
-        // Load the configuration into our PWM slice, and set it running.
-        int i, irq_pin;
+    float divider = 2.;
+    uint8_t i = 0;
 
-        switch (gpio)
-        {
+    printf("key_callback(%d) ", gpio);
+    switch (gpio)
+    {
         case PIN_A_KEY:
-            irq_pin = PIN_A_GREEN;
             uart_send_code(KEY_A_CODE);
             printf("Key A rang\r\n");
-            i = 0;
             break;
         case PIN_B_KEY:
-            irq_pin = PIN_B_BLUE;
             uart_send_code(KEY_B_CODE);
             printf("Key B rang\r\n");
-            i = 1;
             break;
-        }
-        fade_pins[i] = irq_pin;
-        printf("i=%d pin=%d", i, fade_pins[i]);
+    }
 
-        float divider = 4.;
-
-        if (fade_pins[0] > 0 && fade_pins[1] > 0)
+    // Load the configuration into our PWM slice, and set it running.
+    for (i; i < MAX_PWM_LEDS; i++)
+    {
+        pwm_led_t p = pwm_leds[i];
+        if (p.key_in == gpio)
         {
-            // half time if both pins are fading
-            divider = 8.;
+            printf("activate LED on pin %d", p.led_out);
+            p.active = true;
+            divider *= 2.;
         }
+    }
 
-        printf(" start pwm divider %f", divider);
-        // Set divider, reduces counter clock to sysclock/this value
-        pwm_config_set_clkdiv(&pwm_conf, divider);
+    printf("start pwm divider %.2f", divider);
 
-        for (int i = 0; i < 2; i++)
+    // Set divider, reduces counter clock to sysclock/this value
+    pwm_config_set_clkdiv(&pwm_conf, divider);
+
+    for (i = 0; i < MAX_PWM_LEDS; i++)
+    {
+        pwm_led_t p = pwm_leds[i];
+        if (p.key_in == gpio)
         {
-            if (fade_pins[i] > 0)
+            printf("adding LED on pin %d to pwm slice", p.led_out);
+            pwm_init(pwm_gpio_to_slice_num(p.led_out), &pwm_conf, true);
+        }
+    }
+}
+
+void on_pwm_wrap()
+{
+    uint8_t i = 0;
+    float divider = 2.;
+    uint8_t num_active = 0;
+
+    // printf("on_pwm_wrap() ");
+
+    // for (i; i < MAX_PWM_LEDS; i++)
+    // {
+    //     // printf("{%d}=", i);
+    //     if (pwm_leds[i].active)
+    //     {
+    //         // printf("ACTIVE ");
+    //         num_active++;
+    //         divider *= 2.;
+    //     }
+    //     // else {
+    //         // printf("OFF ");
+    //     // }
+    // }
+    for (i = 0; i < MAX_PWM_LEDS; i++)
+    {
+        pwm_led_t p = pwm_leds[i];
+        // printf("[%d]=", i);
+
+        // printf(" checking whether active\r\n");
+
+        // printf("=%i ", p.active);
+
+        if (p.active) {
+            // printf("getting slice from gpio ");
+            // printf("%d ", p.led_out);
+
+            uint slice = pwm_gpio_to_slice_num(p.led_out);
+            // printf("slice=%i ", slice);
+
+            // Clear the interrupt flag that brought us here
+            pwm_clear_irq(slice);
+            // printf("cleared ");
+
+            // printf("count=%d ", p.count);
+
+            if (p.count % 2)
             {
-                pwm_init(pwm_gpio_to_slice_num(fade_pins[i]), &pwm_conf, true);
+                if (++p.fade >= 255)
+                    p.count++;
             }
-        }
+            else
+            {
+                if (--p.fade <= 0)
+                    p.count++;
+            }
+            if (p.count == 6)
+            {
+                p.count = 0;
+                p.active = false;
+                num_active--;
+
+                if (num_active == 0)
+                {
+                    // when all fades finished, stop pwm
+                    printf("stop pwn\n");
+                    pwm_init(slice, &pwm_conf, false);
+                }
+
+                for (uint8_t j = 0; j < MAX_PWM_LEDS; j++)
+                {
+                    pwm_led_t p = pwm_leds[j];
+                    if (p.active) {
+                        printf("setting new divider %.2f for gpio %d\n", divider, p.led_out);
+                        slice = pwm_gpio_to_slice_num(p.led_out);
+                        pwm_config_set_clkdiv(&pwm_conf, divider);
+                        pwm_init(slice, &pwm_conf, true);
+                    }
+                }
+                pwm_set_gpio_level(p.led_out, pwm_gamma[p.idle_value]);
+                continue;
+            }
+            pwm_set_gpio_level(p.led_out, pwm_gamma[p.fade]);
+            printf("%hu ", pwm_gamma[p.fade]);
+                }
     }
 }
 
@@ -341,9 +435,7 @@ void sensor_input(uint gpio, uint32_t events)
         case PIN_A_KEY:
         case PIN_B_KEY:
             if (RisingEdge)
-            {
-                key_callback(gpio, events);
-            }
+                key_callback(gpio);
             break;
         case PIN_C_KEY:
             printf("lock toggle pressed in state %s ", lock_state_str[lock_state]);
@@ -424,55 +516,6 @@ int setup_irq()
     gpio_set_irq_enabled_with_callback(PIN_RELAY_IN2, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &sensor_input);
 }
 
-void on_pwm_wrap()
-{
-    static int fade = 0;
-    static bool going_up = true;
-    static int count = 0;
-
-    for (int i = 0; i < 2; i++)
-    {
-        printf("[%d]=", i);
-        int irq_pin = fade_pins[i];
-        if (irq_pin < 0)
-            continue;
-        uint slice = pwm_gpio_to_slice_num(irq_pin);
-        // Clear the interrupt flag that brought us here
-        pwm_clear_irq(slice);
-
-        if (count % 2)
-        {
-            if (++fade >= 255)
-                count++;
-        }
-        else
-        {
-            if (--fade <= 0)
-                count++;
-        }
-        if (count == 6)
-        {
-            count = 0;
-            fade_pins[i] = -1;
-            if (fade_pins[0] == -1 && fade_pins[0] == -1)
-            {
-                // when all fades finished, stop pwm
-                printf("stop pwn\n");
-                pwm_init(slice, &pwm_conf, false);
-            }
-            else if (fade_pins[0] == -1 || fade_pins[1] == -1)
-            {
-                slice = (i == 0) ? pwm_gpio_to_slice_num(fade_pins[1]) : pwm_gpio_to_slice_num(fade_pins[0]);
-                // regular speed if only one pin is fading
-                pwm_config_set_clkdiv(&pwm_conf, 4.0f);
-                pwm_init(slice, &pwm_conf, true);
-            }
-        }
-        pwm_set_gpio_level(irq_pin, pwm_gamma[fade]);
-        printf("%hu ", pwm_gamma[fade]);
-    }
-}
-
 int setup_gpio()
 {
     gpio_init_mask(
@@ -524,26 +567,48 @@ int setup_gpio()
 
 int setup_pwm()
 {
-    // Tell the LED pin that the PWM is in charge of its value.
-    gpio_set_function(PIN_A_GREEN, GPIO_FUNC_PWM);
-    pwm_set_gpio_level(PIN_A_GREEN, 0x4000);
+    for (uint8_t i = 0; i < MAX_PWM_LEDS; i++)
+    {
+      pwm_led_t p = pwm_leds[i];
+      p.active = false;
+      p.key_in = p.led_out = p.fade = p.count = 0;
+    }
 
-    gpio_set_function(PIN_B_BLUE, GPIO_FUNC_PWM);
-    pwm_set_gpio_level(PIN_B_BLUE, 0x4000);
+    pwm_leds[0].key_in = PIN_A_KEY;
+    pwm_leds[0].led_out = PIN_A_GREEN;
+    pwm_leds[0].idle_value = 250;
 
-    uint slice_num;
+    pwm_leds[1].key_in = PIN_B_KEY;
+    pwm_leds[1].led_out = PIN_B_BLUE;
+    pwm_leds[1].idle_value = 127;
 
-    // Figure out which slice we just connected to the LED pin
-    slice_num = pwm_gpio_to_slice_num(PIN_A_GREEN);
+    pwm_leds[2].key_in = PIN_B_KEY;
+    pwm_leds[2].led_out = PIN_B_RED;
+    pwm_leds[2].idle_value = 3;
 
-    // Mask our slice's IRQ output into the PWM block's single interrupt line,
-    // and register our interrupt handler
-    pwm_clear_irq(slice_num);
-    pwm_set_irq_enabled(slice_num, true);
 
-    slice_num = pwm_gpio_to_slice_num(PIN_B_BLUE);
-    pwm_clear_irq(slice_num);
-    pwm_set_irq_enabled(slice_num, true);
+    for (uint8_t i = 0; i < MAX_PWM_LEDS; i++)
+    {
+        uint slice_num;
+        pwm_led_t p = pwm_leds[i];
+
+        if (p.led_out == 0)
+            continue;
+
+        // Tell the LED pin that the PWM is in charge of its value.
+        gpio_set_function(p.led_out, GPIO_FUNC_PWM);
+        pwm_set_gpio_level(p.led_out, pwm_gamma[p.idle_value]);
+
+        printf("led[%d] setting idle val %d = %u\r\n", p.led_out, p.idle_value, pwm_gamma[p.idle_value]);
+
+        // Figure out which slice we just connected to the LED pin
+        slice_num = pwm_gpio_to_slice_num(p.led_out);
+
+        // Mask our slice's IRQ output into the PWM block's single interrupt line,
+        // and register our interrupt handler
+        pwm_clear_irq(slice_num);
+        pwm_set_irq_enabled(slice_num, true);
+    }
 
     irq_set_exclusive_handler(PWM_IRQ_WRAP, on_pwm_wrap);
     irq_set_enabled(PWM_IRQ_WRAP, true);
@@ -582,8 +647,10 @@ int main()
 {
     setup_gpio();
     setup_irq();
-    setup_pwm();
     setup_uart();
+
+    sleep_ms(2000);
+    setup_pwm();
 
     gpio_put(PIN_STATUS, 1);
 
