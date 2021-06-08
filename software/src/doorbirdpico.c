@@ -90,6 +90,41 @@ static const char *lock_state_str[] = {
     "WAITING_FOR_UNLOCK",
 };
 
+const uint16_t pwm_gamma[] = {
+  65535,    65508,    65479,    65451,    65422,    65394,    65365,    65337,
+  65308,    65280,    65251,    65223,    65195,    65166,    65138,    65109,
+  65081,    65052,    65024,    64995,    64967,    64938,    64909,    64878,
+  64847,    64815,    64781,    64747,    64711,    64675,    64637,    64599,
+  64559,    64518,    64476,    64433,    64389,    64344,    64297,    64249,
+  64200,    64150,    64099,    64046,    63992,    63937,    63880,    63822,
+  63763,    63702,    63640,    63577,    63512,    63446,    63379,    63310,
+  63239,    63167,    63094,    63019,    62943,    62865,    62785,    62704,
+  62621,    62537,    62451,    62364,    62275,    62184,    62092,    61998,
+  61902,    61804,    61705,    61604,    61501,    61397,    61290,    61182,
+  61072,    60961,    60847,    60732,    60614,    60495,    60374,    60251,
+  60126,    59999,    59870,    59739,    59606,    59471,    59334,    59195,
+  59053,    58910,    58765,    58618,    58468,    58316,    58163,    58007,
+  57848,    57688,    57525,    57361,    57194,    57024,    56853,    56679,
+  56503,    56324,    56143,    55960,    55774,    55586,    55396,    55203,
+  55008,    54810,    54610,    54408,    54203,    53995,    53785,    53572,
+  53357,    53140,    52919,    52696,    52471,    52243,    52012,    51778,
+  51542,    51304,    51062,    50818,    50571,    50321,    50069,    49813,
+  49555,    49295,    49031,    48764,    48495,    48223,    47948,    47670,
+  47389,    47105,    46818,    46529,    46236,    45940,    45641,    45340,
+  45035,    44727,    44416,    44102,    43785,    43465,    43142,    42815,
+  42486,    42153,    41817,    41478,    41135,    40790,    40441,    40089,
+  39733,    39375,    39013,    38647,    38279,    37907,    37531,    37153,
+  36770,    36385,    35996,    35603,    35207,    34808,    34405,    33999,
+  33589,    33175,    32758,    32338,    31913,    31486,    31054,    30619,
+  30181,    29738,    29292,    28843,    28389,    27932,    27471,    27007,
+  26539,    26066,    25590,    25111,    24627,    24140,    23649,    23153,
+  22654,    22152,    21645,    21134,    20619,    20101,    19578,    19051,
+  18521,    17986,    17447,    16905,    16358,    15807,    15252,    14693,
+  14129,    13562,    12990,    12415,    11835,    11251,    10662,    10070,
+   9473,    8872,    8266,    7657,    7043,    6424,    5802,    5175,
+   4543,    3908,    3267,    2623,    1974,    1320,    662,    0
+};
+
 void on_uart_rx()
 {
     printf("on_uart_rx... ");
@@ -397,57 +432,44 @@ void on_pwm_wrap()
 
     for (int i = 0; i < 2; i++)
     {
-        printf("w[%d]", i);
+        printf("[%d]=", i);
         int irq_pin = fade_pins[i];
-        printf("=", irq_pin);
         if (irq_pin < 0)
             continue;
         uint slice = pwm_gpio_to_slice_num(irq_pin);
         // Clear the interrupt flag that brought us here
         pwm_clear_irq(slice);
 
-        if (going_up)
+        if (count % 2)
         {
-            ++fade;
-            if (fade > 255)
-            {
-                fade = 255;
-                going_up = false;
-                printf("switch to down\n");
-            }
+            if (++fade >= 255)
+                count++;
         }
         else
         {
-            --fade;
-            if (fade < 0)
+            if (--fade <= 0)
+                count++;
+        }
+        if (count == 6)
+        {
+            count = 0;
+            fade_pins[i] = -1;
+            if (fade_pins[0] == -1 && fade_pins[0] == -1)
             {
-                fade = 0;
-                going_up = true;
-                printf("switch to up, count=%d\n", count);
-                if (++count == 5)
-                {
-                    count = 0;
-                    pwm_set_gpio_level(irq_pin, 0x2000);
-                    fade_pins[i] = -1;
-                    if (fade_pins[0] == -1 && fade_pins[0] == -1)
-                    {
-                        // when all fades finished, stop pwm
-                        printf("stop pwn\n");
-                        pwm_init(slice, &pwm_conf, false);
-                    }
-                    else if (fade_pins[0] == -1 || fade_pins[1] == -1)
-                    {
-                        slice = (i == 0) ? pwm_gpio_to_slice_num(fade_pins[1]) : pwm_gpio_to_slice_num(fade_pins[0]);
-                        // regular speed if only one pin is fading
-                        pwm_config_set_clkdiv(&pwm_conf, 4.0f);
-                        pwm_init(slice, &pwm_conf, true);
-                    }
-                }
+                // when all fades finished, stop pwm
+                printf("stop pwn\n");
+                pwm_init(slice, &pwm_conf, false);
+            }
+            else if (fade_pins[0] == -1 || fade_pins[1] == -1)
+            {
+                slice = (i == 0) ? pwm_gpio_to_slice_num(fade_pins[1]) : pwm_gpio_to_slice_num(fade_pins[0]);
+                // regular speed if only one pin is fading
+                pwm_config_set_clkdiv(&pwm_conf, 4.0f);
+                pwm_init(slice, &pwm_conf, true);
             }
         }
-        // Square the fade value to make the LED's brightness appear more linear
-        // Note this range matches with the wrap value
-        pwm_set_gpio_level(irq_pin, fade * fade);
+        pwm_set_gpio_level(irq_pin, pwm_gamma[fade]);
+        printf("%hu ", pwm_gamma[fade]);
     }
 }
 
@@ -506,8 +528,8 @@ int setup_pwm()
     gpio_set_function(PIN_A_GREEN, GPIO_FUNC_PWM);
     pwm_set_gpio_level(PIN_A_GREEN, 0x4000);
 
-    // gpio_set_function(PIN_B_BLUE, GPIO_FUNC_PWM);
-    // pwm_set_gpio_level(PIN_B_BLUE, 0xE000);
+    gpio_set_function(PIN_B_BLUE, GPIO_FUNC_PWM);
+    pwm_set_gpio_level(PIN_B_BLUE, 0x4000);
 
     uint slice_num;
 
