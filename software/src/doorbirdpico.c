@@ -4,6 +4,7 @@
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
 #include "hardware/pwm.h"
+#include "hardware/structs/pwm.h"
 
 #define UART_ID uart0
 #define BAUD_RATE 9600
@@ -128,9 +129,10 @@ typedef struct pwm_led {
     bool active;
     uint key_in;
     uint led_out;
+    uint slice_num;
     uint8_t idle_value;
     uint8_t fade;
-    uint8_t count;
+    uint8_t cycle;
 } pwm_led_t;
 
 door_state_t door_state;
@@ -199,7 +201,6 @@ void key_callback(uint gpio)
             break;
     }
 
-    // Load the configuration into our PWM slice, and set it running.
     for (i; i < MAX_PWM_LEDS; i++)
     {
         pwm_led_t p = pwm_leds[i];
@@ -207,13 +208,12 @@ void key_callback(uint gpio)
         {
             printf("activate LED on pin %d ", p.led_out);
             pwm_leds[i].active = true;
-            pwm_leds[i].count = p.count % 2 ? 1 : 0;
+            pwm_leds[i].cycle = p.cycle % 2 ? 1 : 0;
         }
     }
 
-
-    // divider = (float)get_active_led_count() * PWM_LED_INIT_DIV;
-    divider = PWM_LED_INIT_DIV;
+    divider = (float)get_active_led_count() * PWM_LED_INIT_DIV;
+    // divider = PWM_LED_INIT_DIV;
     printf("start pwm with divider %.2f ", divider);
     // Set divider, reduces counter clock to sysclock/this value
     pwm_config_set_clkdiv(&pwm_conf, divider);
@@ -223,9 +223,12 @@ void key_callback(uint gpio)
         pwm_led_t p = pwm_leds[i];
         if (p.key_in == gpio)
         {
-            uint slice_num = pwm_gpio_to_slice_num(p.led_out);
-            printf("adding LED on pin %d to pwm slice %d\r\n", p.led_out, slice_num);
-            pwm_init(slice_num, &pwm_conf, true);
+            if (pwm_hw->slice[p.slice_num].ctr == PWM_CH0_CTR_RESET) {
+                printf("initializing pwm slice %d for LED on pin %d\r\n", p.slice_num, p.led_out);
+                pwm_init(p.slice_num, &pwm_conf, true);
+            } else {
+                printf("don't re-init pwm slice %d for LED on pin %d because it's already running!\r\n", p.slice_num, p.led_out);
+            }
         }
     }
 }
@@ -249,21 +252,33 @@ void on_pwm_wrap()
 
         // printf("=%i ", p.active);
 
-        uint slice_num = pwm_gpio_to_slice_num(p.led_out);
-        printf("slice=%i ", slice_num);
+        printf("slice=%i ", p.slice_num);
 
-        // Clear the interrupt flag that brought us here
-        pwm_clear_irq(slice_num);
+        bool do_clear_slice = true;
+
+        for (uint8_t j = 0; j < MAX_PWM_LEDS; j++)
+        {
+            if (p.slice_num == pwm_leds[j].slice_num && i != j && pwm_leds[j].active)
+            {
+                printf("don't clear slice %d on led [%d] because [%d] is still active\r\n", p.slice_num, i, j);
+                do_clear_slice = false;
+            }
+        }
+
+        if (do_clear_slice) {
+            // Clear the interrupt flag that brought us here
+            pwm_clear_irq(p.slice_num);
+        }
 
         if (p.active) {
-            printf("count=%d fade=%d ", pwm_leds[i].count, pwm_leds[i].fade);
+            printf("cycle=%d fade=%d ", pwm_leds[i].cycle, pwm_leds[i].fade);
 
-            if (pwm_leds[i].count % 2)
+            if (pwm_leds[i].cycle % 2)
             {
                 pwm_leds[i].fade += 1;
                 if (pwm_leds[i].fade >= 255)
                 {
-                    pwm_leds[i].count += 1;
+                    pwm_leds[i].cycle += 1;
                 }
             }
             else
@@ -271,13 +286,13 @@ void on_pwm_wrap()
                 pwm_leds[i].fade -= 1;
                 if (pwm_leds[i].fade <= 0)
                 {
-                    pwm_leds[i].count += 1;
+                    pwm_leds[i].cycle += 1;
                 }
             }
-            if (pwm_leds[i].count == PWM_LED_CYCLES)
+            if (pwm_leds[i].cycle == PWM_LED_CYCLES)
             {
                 if (gpio_get(p.key_in)) {
-                    pwm_leds[i].count = 0;
+                    pwm_leds[i].cycle = 0;
                     continue;
                 }
 
@@ -285,22 +300,28 @@ void on_pwm_wrap()
                 // float divider = (float)num_active * PWM_LED_INIT_DIV;
                 float divider = PWM_LED_INIT_DIV;
                 printf(" i=%d finished. num_active=%u ", i, num_active);
-                pwm_leds[i].count = 0;
+                pwm_leds[i].cycle = 0;
                 pwm_leds[i].active = false;
+                bool do_stop_pwm = true;
 
                 for (uint8_t j = 0; j < MAX_PWM_LEDS; j++)
                 {
-                    pwm_led_t p = pwm_leds[j];
-                    if (p.active) {
+                    pwm_led_t q = pwm_leds[j];
+                    if (q.active) {
                         printf("setting new divider %.2f for gpio %d\n", divider, p.led_out);
-                        uint slice = pwm_gpio_to_slice_num(p.led_out);
                         pwm_config_set_clkdiv(&pwm_conf, divider);
-                        pwm_init(slice, &pwm_conf, true);
+                        pwm_init(q.slice_num, &pwm_conf, true);
+                        if (p.slice_num == q.slice_num && i != j) {
+                            printf("don't stop pwm slice %d on led [%d] because [%d] is still active\r\n", p.slice_num, i, j);
+                            do_stop_pwm = false;
+                        }
                     }
                 }
                 level = pwm_gamma[p.idle_value];
-                printf("...stop PWM\r\n");
-                pwm_init(slice_num, &pwm_conf, false);
+                if (do_stop_pwm) {
+                    printf("...stop PWM\r\n");
+                    pwm_init(p.slice_num, &pwm_conf, false);
+                }
                 continue;
             } else {
                 level = pwm_gamma[pwm_leds[i].fade];
@@ -585,7 +606,7 @@ int setup_pwm()
       pwm_led_t p = pwm_leds[i];
       pwm_leds[i].active = false;
       pwm_leds[i].key_in = pwm_leds[i].led_out = 0;
-      pwm_leds[i].fade = pwm_leds[i].count = 0;
+      pwm_leds[i].fade = pwm_leds[i].cycle = 0;
     }
 
     pwm_leds[0].key_in = PIN_A_KEY;
@@ -615,9 +636,16 @@ int setup_pwm()
 
         // Figure out which slice we just connected to the LED pin
         slice_num = pwm_gpio_to_slice_num(p.led_out);
-        printf("led[%d] setting idle val %d = %u, slice_num=%u\r\n", p.led_out, p.idle_value, pwm_gamma[p.idle_value], slice_num);
-        pwm_clear_irq(slice_num);
-        pwm_set_irq_enabled(slice_num, true);
+        pwm_leds[i].slice_num = slice_num;
+
+        if (pwm_hw->inte & 1u << slice_num)
+        {
+            printf("led[%d] slice_num %u is already in use, don't re-enable \r\n", p.led_out, slice_num);
+        } else {
+            printf("led[%d] setting idle val %d = %u, slice_num=%u\r\n", p.led_out, p.idle_value, pwm_gamma[p.idle_value], slice_num);
+            pwm_clear_irq(slice_num);
+            pwm_set_irq_enabled(slice_num, true);
+        }
     }
     irq_set_exclusive_handler(PWM_IRQ_WRAP, on_pwm_wrap);
     irq_set_enabled(PWM_IRQ_WRAP, true);
