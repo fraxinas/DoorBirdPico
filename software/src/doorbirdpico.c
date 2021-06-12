@@ -140,6 +140,7 @@ door_state_t door_state;
 lock_state_t lock_state;
 pwm_config pwm_conf;
 pwm_led_t pwm_leds[MAX_PWM_LEDS];
+bool pwm_running;
 
 void on_uart_rx()
 {
@@ -222,6 +223,9 @@ void key_callback(uint gpio)
     for (i = 0; i < MAX_PWM_LEDS; i++)
     {
         pwm_led_t p = pwm_leds[i];
+        if (pwm_running) {
+            printf("don't re-init pwm because it's already running!\r\n");
+        }
         if (p.key_in == gpio)
         {
             if (pwm_hw->slice[p.slice_num].ctr == PWM_CH0_CTR_RESET) {
@@ -327,6 +331,7 @@ void on_pwm_wrap()
                 if (do_stop_pwm) {
                     printf("...stop PWM\r\n");
                     pwm_init(p.slice_num, &pwm_conf, false);
+                    pwm_running = false;
                 }
                 continue;
             } else {
@@ -658,6 +663,8 @@ int setup_pwm()
     }
     irq_set_exclusive_handler(PWM_IRQ_WRAP, on_pwm_wrap);
     irq_set_enabled(PWM_IRQ_WRAP, true);
+
+    pwm_running = false;
 
     pwm_conf = pwm_get_default_config();
 }
