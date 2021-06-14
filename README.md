@@ -34,11 +34,3 @@
 | 2021-06-04 | v0.1    | Assembling of prototype PCB                     |
 | 2021-06-06 | v0.2    | Software is essentially ready                   |
 
-## TODOs rev 0.2
-
-- [ ] Use 3V3 pin instead of Vsys
-- [ ] Silkscreen Reed Door / Post
-- [ ] Resistor values R1-R4
-- [ ] Fix mounting hole diameter
-- [ ] Fix C1
-- [ ] Reset button
