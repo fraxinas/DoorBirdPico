@@ -56,6 +56,11 @@
 
 #define DO_UNLOCK_ON_OPEN false
 
+#define RS485_ID uart1
+#define RS485_TX_PIN 16
+#define RS485_RX_PIN 17
+#define RS485_READBUF_LEN 64
+
 typedef enum
 {
     DOOR_UNKNOWN,
@@ -147,6 +152,12 @@ void on_uart_rx();
 
 // Send data to Doorbird via UART
 void uart_send_code(char *code);
+
+// received data from knxadapter via RS485
+void on_rs485_rx();
+
+// Send data to knxadapter via RS485
+void rs485_send(char *message);
 
 // Return amount of active PWM LEDs
 uint8_t get_active_led_count();
