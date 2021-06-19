@@ -28,14 +28,73 @@ void on_uart_rx()
 
 void on_rs485_rx()
 {
-    printf("on_rs485_rx... ");
     while (uart_is_readable(RS485_ID))
     {
-        uint8_t buf[RS485_READBUF_LEN];
-        uart_read_blocking(RS485_ID, buf, RS485_READBUF_LEN);
-        printf("received '%s' from knxadapter\n", buf);
+        uint8_t buf[RS485_BUF_LEN];
+        rs485_key_t key = RS485_K_NONE;
+
+        uart_read_blocking(RS485_ID, buf, RS485_BUF_LEN);
+        printf("RS485: received '%s' from knxadapter\n", buf);
+
+        if (strlen(buf) <= RS485_KEY_LEN+1)
+        {
+            printf("RS485: buffer too short!\n");
+            return;
+        }
+        if (buf[RS485_KEY_LEN+1] != '=')
+        {
+            printf("RS485: can't parse KEY=VALUE command!\n");
+            return;
+        }
+        else if (strncmp(buf, rs485_key_str[RS485_K_LOCKSTATE], RS485_KEY_LEN) == 0) {
+            key = RS485_K_LOCKSTATE;
+        }
+        else if (strncmp(buf, rs485_key_str[RS485_K_BUZZER], RS485_KEY_LEN) == 0) {
+            key = RS485_K_BUZZER;
+        }
+        else if (strncmp(buf, rs485_key_str[RS485_K_BRIGHTNESS], RS485_KEY_LEN) == 0) {
+            key = RS485_K_BRIGHTNESS;
+        }
+
+        uint8_t *val = buf+RS485_KEY_LEN+1;
+        switch (key)
+        {
+            case RS485_K_LOCKSTATE:
+            {
+                lock_state_t new_state = LOCK_S_UNKNOWN;
+                if (strcmp(val, lock_state_str[LOCK_S_LOCKED]) == 0)
+                {
+                    new_state = LOCK_S_LOCKED;
+                } else if (strcmp(val, lock_state_str[LOCK_S_UNLOCKED]) == 0)
+                {
+                    new_state = LOCK_S_UNLOCKED;
+                }
+                if (new_state != LOCK_S_UNKNOWN) {
+                    printf("RS485: New lock state set (previous state: %s) -> ", lock_state_str[lock_state]);
+                    set_key_c_color(LOCK_A_ACTUATED);
+                    add_alarm_in_ms(DELAY_ACTUATED_LOCK_MS, actuated_lock_alarm_cb, NULL, false);
+                    return;
+                }
+                goto unhandled_value;
+                break;
+            }
+            case RS485_K_BUZZER:
+            {
+                int buzzer = atoi(val);
+                printf("RS485: %s Buzzer ", buzzer ? "enable" : "disable");
+                gpio_put(PIN_RELAY_OUT, buzzer);
+                break;
+            }
+            case RS485_K_BRIGHTNESS:
+            default:
+                printf("RS485: unhandled key!\n");
+                return;
+        }
     }
     return;
+
+unhandled_value:
+    printf("RS485: unhandled value!\n");
 }
 
 void uart_send_code(char *code)
@@ -284,7 +343,14 @@ int64_t buzzer_alarm_cb(alarm_id_t id, void *user_data)
 
 int64_t actuated_lock_alarm_cb(alarm_id_t id, void *user_data)
 {
-    lock_state_t new_state = gpio_get(PIN_RELAY_IN2) ? LOCK_S_LOCKED : LOCK_S_UNLOCKED;
+    lock_state_t new_state;
+    if (user_data) {
+        // state received via RS485
+        new_state = (lock_state_t)user_data;
+    } else {
+        // relais toggled
+        new_state = gpio_get(PIN_RELAY_IN2) ? LOCK_S_LOCKED : LOCK_S_UNLOCKED;
+    }
     printf("actuated_lock_alarm_cb -> new_state: %s\r\n", lock_state_str[new_state]);
     if (new_state == LOCK_S_LOCKED)
     {
@@ -312,9 +378,23 @@ int64_t actuated_lock_alarm_cb(alarm_id_t id, void *user_data)
 int64_t delayed_lock_alarm_cb(alarm_id_t id, void *user_data)
 {
     printf("...delayed_lock_alarm_cb(%d) send %s\r\n", (int)id, LOCK_CODE);
-    set_key_c_color(LOCK_A_OFF);
-    uart_send_code(LOCK_CODE);
+    send_locking_action(LOCK_A_LOCKING);
     return 0;
+}
+
+void send_locking_action(lock_action_t action)
+{
+    set_key_c_color(action);
+    char msg[RS485_BUF_LEN];
+
+    if (action == LOCK_A_LOCKING) {
+        uart_send_code(LOCK_CODE);
+    } else if (action == LOCK_A_UNLOCKING) {
+        uart_send_code(UNLOCK_CODE);
+    }
+
+    snprintf (msg, RS485_BUF_LEN, "%s=%s", rs485_key_str[RS485_K_LOCKACTION], lock_action_str[action]);
+    rs485_send(msg);
 }
 
 int64_t lock_key_pressed_cb(alarm_id_t id, void *user_data)
@@ -326,13 +406,12 @@ int64_t lock_key_pressed_cb(alarm_id_t id, void *user_data)
     if (long_pressed)
     {
         printf("LONG pressed -> LOCK immediately (send %s)\r\n", LOCK_CODE);
-        uart_send_code(LOCK_CODE);
-        set_key_c_color(LOCK_A_LOCKING);
+        send_locking_action(LOCK_A_LOCKING);
     }
     else
     {
         printf("short pressed -> LOCK delayed ");
-        set_key_c_color(LOCK_A_LEAVING);
+        send_locking_action(LOCK_A_LOCKING);
         add_alarm_in_ms(DELAY_LEAVING_LOCK_MS, delayed_lock_alarm_cb, NULL, false);
     }
 
@@ -364,8 +443,7 @@ void sensor_input(uint gpio, uint32_t events)
             if (lock_state != LOCK_S_UNLOCKED)
             {
                 printf(" -> UNLOCK (send %s)\r\n", UNLOCK_CODE);
-                set_key_c_color(LOCK_A_UNLOCKING);
-                uart_send_code(UNLOCK_CODE);
+                send_locking_action(LOCK_A_UNLOCKING);
             }
             else
             {
@@ -403,8 +481,7 @@ void sensor_input(uint gpio, uint32_t events)
                     if (DO_UNLOCK_ON_OPEN)
                     {
                         printf(" -> UNLOCK (send %s)...\r\n", UNLOCK_CODE);
-                        set_key_c_color(LOCK_A_UNLOCKING);
-                        uart_send_code(UNLOCK_CODE);
+                        send_locking_action(LOCK_A_UNLOCKING);
                     }
                     else
                     {

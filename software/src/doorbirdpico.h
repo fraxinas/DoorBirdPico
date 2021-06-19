@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "hardware/gpio.h"
@@ -59,7 +61,24 @@
 #define RS485_ID uart1
 #define RS485_TX_PIN 16
 #define RS485_RX_PIN 17
-#define RS485_READBUF_LEN 64
+#define RS485_BUF_LEN 64
+#define RS485_KEY_LEN 10
+
+typedef enum{
+    RS485_K_NONE,
+    RS485_K_LOCKSTATE,
+    RS485_K_LOCKACTION,
+    RS485_K_BUZZER,
+    RS485_K_BRIGHTNESS
+} rs485_key_t;
+
+static const char *rs485_key_str[] = {
+    "",
+    " LOCKSTATE",
+    "LOCKACTION"
+    "    BUZZER",
+    "BRIGHTNESS",
+};
 
 typedef enum
 {
@@ -93,6 +112,17 @@ static const char *lock_state_str[] = {
     "LOCKED",
     "UNLOCKED",
     "WAITING_FOR_UNLOCK",
+};
+
+static const char *lock_action_str[] = {
+    "OFF",
+    "LOCKING",
+    "LOCKED",
+    "LEAVING",
+    "UNLOCKING",
+    "UNLOCKED",
+    "ACTUATED",
+    "PRESSED",
 };
 
 const uint16_t pwm_gamma[] = {
@@ -179,6 +209,9 @@ int64_t actuated_lock_alarm_cb(alarm_id_t id, void *user_data);
 
 // function called after leaving lock delay
 int64_t delayed_lock_alarm_cb(alarm_id_t id, void *user_data);
+
+// function which send (un-)locking codes to UART and RS485
+void send_locking_action(lock_action_t action);
 
 // check whether inside key was pressed short or long and lock accordingly
 int64_t lock_key_pressed_cb(alarm_id_t id, void *user_data);
