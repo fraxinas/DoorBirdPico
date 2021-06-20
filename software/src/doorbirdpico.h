@@ -69,7 +69,10 @@ typedef enum{
     RS485_K_LOCKSTATE,
     RS485_K_LOCKACTION,
     RS485_K_BUZZER,
-    RS485_K_BRIGHTNESS
+    RS485_K_BRIGHTNESS,
+    RS485_K_DOORREED,
+    RS485_K_LETTERREED,
+    RS485_K_LAST,
 } rs485_key_t;
 
 static const char *rs485_key_str[] = {
@@ -78,13 +81,15 @@ static const char *rs485_key_str[] = {
     "LOCKACTION"
     "    BUZZER",
     "BRIGHTNESS",
+    "  DOORREED",
+    "LETTERREED"
 };
 
 typedef enum
 {
     DOOR_UNKNOWN,
     DOOR_CLOSED,
-    DOOR_OPEN
+    DOOR_OPEN,
 } door_state_t;
 
 typedef enum
@@ -106,6 +111,12 @@ typedef enum
     LOCK_A_ACTUATED,
     LOCK_A_PRESSED,
 } lock_action_t;
+
+static const char *door_state_str[] = {
+    "UNKNOWN",
+    "CLOSED",
+    "OPEN",
+};
 
 static const char *lock_state_str[] = {
     "UNKNOWN",
@@ -183,11 +194,14 @@ void on_uart_rx();
 // Send data to Doorbird via UART
 void uart_send_code(char *code);
 
+// Get key from RS485 command
+rs485_key_t rs485_key_from_str (char *msg);
+
 // received data from knxadapter via RS485
 void on_rs485_rx();
 
 // Send data to knxadapter via RS485
-void rs485_send(char *message);
+void rs485_send_msg(rs485_key_t key, const char* val);
 
 // Return amount of active PWM LEDs
 uint8_t get_active_led_count();
@@ -210,7 +224,7 @@ int64_t actuated_lock_alarm_cb(alarm_id_t id, void *user_data);
 // function called after leaving lock delay
 int64_t delayed_lock_alarm_cb(alarm_id_t id, void *user_data);
 
-// function which send (un-)locking codes to UART and RS485
+// function which sends (un-)locking codes to UART and RS485
 void send_locking_action(lock_action_t action);
 
 // check whether inside key was pressed short or long and lock accordingly

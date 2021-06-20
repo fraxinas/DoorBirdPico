@@ -26,35 +26,39 @@ void on_uart_rx()
     printf("UART error occured!\n");
 }
 
+rs485_key_t rs485_key_from_str (char *msg)
+{
+    rs485_key_t key = RS485_K_NONE;
+    if (strlen(msg) <= RS485_KEY_LEN+1)
+    {
+        printf("RS485: buffer too short!\n");
+        return key;
+    }
+    if (msg[RS485_KEY_LEN+1] != '=')
+    {
+        printf("RS485: can't parse KEY=VALUE command!\n");
+        return key;
+    }
+    for (key; key < RS485_K_LAST; key++)
+    {
+        if (strncmp(msg, rs485_key_str[key], RS485_KEY_LEN) == 0)
+            return key;
+    }
+    printf("RS485: unhandled key\n");
+    return RS485_K_NONE;
+}
+
 void on_rs485_rx()
 {
     while (uart_is_readable(RS485_ID))
     {
         uint8_t buf[RS485_BUF_LEN];
-        rs485_key_t key = RS485_K_NONE;
+        rs485_key_t key;
 
         uart_read_blocking(RS485_ID, buf, RS485_BUF_LEN);
         printf("RS485: received '%s' from knxadapter\n", buf);
 
-        if (strlen(buf) <= RS485_KEY_LEN+1)
-        {
-            printf("RS485: buffer too short!\n");
-            return;
-        }
-        if (buf[RS485_KEY_LEN+1] != '=')
-        {
-            printf("RS485: can't parse KEY=VALUE command!\n");
-            return;
-        }
-        else if (strncmp(buf, rs485_key_str[RS485_K_LOCKSTATE], RS485_KEY_LEN) == 0) {
-            key = RS485_K_LOCKSTATE;
-        }
-        else if (strncmp(buf, rs485_key_str[RS485_K_BUZZER], RS485_KEY_LEN) == 0) {
-            key = RS485_K_BUZZER;
-        }
-        else if (strncmp(buf, rs485_key_str[RS485_K_BRIGHTNESS], RS485_KEY_LEN) == 0) {
-            key = RS485_K_BRIGHTNESS;
-        }
+        key = rs485_key_from_str (buf);
 
         uint8_t *val = buf+RS485_KEY_LEN+1;
         switch (key)
@@ -72,7 +76,7 @@ void on_rs485_rx()
                 if (new_state != LOCK_S_UNKNOWN) {
                     printf("RS485: New lock state set (previous state: %s) -> ", lock_state_str[lock_state]);
                     set_key_c_color(LOCK_A_ACTUATED);
-                    add_alarm_in_ms(DELAY_ACTUATED_LOCK_MS, actuated_lock_alarm_cb, NULL, false);
+                    add_alarm_in_ms(DELAY_ACTUATED_LOCK_MS, actuated_lock_alarm_cb, (void*) new_state, false);
                     return;
                 }
                 goto unhandled_value;
@@ -87,7 +91,6 @@ void on_rs485_rx()
             }
             case RS485_K_BRIGHTNESS:
             default:
-                printf("RS485: unhandled key!\n");
                 return;
         }
     }
@@ -103,12 +106,12 @@ void uart_send_code(char *code)
     uart_puts(UART_ID, "\r\n");
 }
 
-void rs485_send(char *message)
+void rs485_send_msg(rs485_key_t key, const char* val)
 {
-    uart_puts(uart0, message);
-    uart_puts(uart0, "\r\n");
+    char msg[RS485_BUF_LEN];
+    snprintf (msg, RS485_BUF_LEN, "%s=%s\r\n", rs485_key_str[key], val);
+    uart_puts(uart0, msg);
 }
-
 
 uint8_t get_active_led_count()
 {
@@ -385,7 +388,6 @@ int64_t delayed_lock_alarm_cb(alarm_id_t id, void *user_data)
 void send_locking_action(lock_action_t action)
 {
     set_key_c_color(action);
-    char msg[RS485_BUF_LEN];
 
     if (action == LOCK_A_LOCKING) {
         uart_send_code(LOCK_CODE);
@@ -393,8 +395,7 @@ void send_locking_action(lock_action_t action)
         uart_send_code(UNLOCK_CODE);
     }
 
-    snprintf (msg, RS485_BUF_LEN, "%s=%s", rs485_key_str[RS485_K_LOCKACTION], lock_action_str[action]);
-    rs485_send(msg);
+    rs485_send_msg(RS485_K_LOCKACTION, lock_action_str[action]);
 }
 
 int64_t lock_key_pressed_cb(alarm_id_t id, void *user_data)
@@ -457,10 +458,13 @@ void sensor_input(uint gpio, uint32_t events)
                 printf("Letterbox opened (send %s)\r\n", LETTER_CODE);
                 uart_send_code(LETTER_CODE);
             }
+            door_state_t letter_state = RisingEdge ? DOOR_CLOSED : DOOR_OPEN;
+            rs485_send_msg(RS485_K_LETTERREED, door_state_str[letter_state]);
             break;
         case PIN_REED_DOOR:
             door_state = RisingEdge ? DOOR_CLOSED : DOOR_OPEN;
-            printf("Reed door toggle -> door_state = %s\r\n", door_state == DOOR_OPEN ? "OPENED" : "CLOSED");
+            rs485_send_msg(RS485_K_DOORREED, door_state_str[door_state]);
+            printf("Reed door toggle -> door_state = %s\r\n", door_state_str[door_state]);
             break;
         case PIN_RELAY_IN1:
             if (FallingEdge)
@@ -487,7 +491,7 @@ void sensor_input(uint gpio, uint32_t events)
                     {
                         printf(" -> waiting for unlocked...\r\n");
                         lock_state = LOCK_S_WAITING_FOR_UNLOCK;
-                        set_key_c_color(LOCK_A_LEAVING);
+                        send_locking_action(LOCK_A_LEAVING);
                     }
                 }
             }
