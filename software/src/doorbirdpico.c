@@ -3,6 +3,16 @@
 void on_uart_rx()
 {
     printf("on_uart_rx... ");
+    if (uart_is_readable(UART_ID))
+        on_doorbird_rx();
+    
+    if (uart_is_readable(RS485_ID))
+        on_rs485_rx();
+}
+
+void on_doorbird_rx()
+{
+    printf("on_doorbird_rx... ");
     while (uart_is_readable(UART_ID))
     {
         uint8_t ch = uart_getc(UART_ID);
@@ -23,7 +33,6 @@ void on_uart_rx()
             }
         }
     }
-    printf("UART error occured!\n");
 }
 
 rs485_key_t rs485_key_from_str (char *msg)
@@ -50,12 +59,23 @@ rs485_key_t rs485_key_from_str (char *msg)
 
 void on_rs485_rx()
 {
+    printf("on_rs485_rx... ");
     while (uart_is_readable(RS485_ID))
     {
+        printf("uart_is_readable(RS485_ID)... ");
         uint8_t buf[RS485_BUF_LEN];
         rs485_key_t key;
+        uint8_t p = 0;
+        uint8_t ch = ' ';
+        
+        while (ch != '\n' && p < RS485_BUF_LEN) 
+        {
+            ch = uart_getc(RS485_ID);
+            printf("0x%02X (%c)", ch, ch);
+            buf[p] = ch;
+            p++;
+        }
 
-        uart_read_blocking(RS485_ID, buf, RS485_BUF_LEN);
         printf("RS485: received '%s' from knxadapter\n", buf);
 
         key = rs485_key_from_str (buf);
@@ -108,9 +128,10 @@ void uart_send_code(char *code)
 
 void rs485_send_msg(rs485_key_t key, const char* val)
 {
+    printf("RS485: send msg");
     char msg[RS485_BUF_LEN];
     snprintf (msg, RS485_BUF_LEN, "%s=%s\r\n", rs485_key_str[key], val);
-    uart_puts(uart0, msg);
+    uart_puts(RS485_ID, msg);
 }
 
 uint8_t get_active_led_count()
@@ -662,11 +683,11 @@ int setup_uart()
     // Select correct interrupt for the UART we are using
 
     // And set up and enable the interrupt handlers
-    irq_set_exclusive_handler(UART1_IRQ, on_rs485_rx);
+    irq_set_exclusive_handler(UART1_IRQ, on_uart_rx);
     irq_set_enabled(UART1_IRQ, true);
 
     // Now enable the UART to send interrupts - RX only
-    uart_set_irq_enables(UART_ID, true, false);
+    uart_set_irq_enables(RS485_ID, true, false);
 }
 
 int main()

@@ -188,8 +188,11 @@ pwm_config pwm_conf;
 pwm_led_t pwm_leds[MAX_PWM_LEDS];
 bool pwm_running;
 
-// received data from Doorbird via UART
+// received data on UART0 or RS485
 void on_uart_rx();
+
+// process data from Doorbird
+void on_doorbird_rx();
 
 // Send data to Doorbird via UART
 void uart_send_code(char *code);
@@ -197,7 +200,7 @@ void uart_send_code(char *code);
 // Get key from RS485 command
 rs485_key_t rs485_key_from_str (char *msg);
 
-// received data from knxadapter via RS485
+// process data from knxadapter
 void on_rs485_rx();
 
 // Send data to knxadapter via RS485
