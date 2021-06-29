@@ -246,4 +246,4 @@ int setup_gpio();
 int setup_pwm();
 
 // Setup function for UART communication
-int setup_uart();
+int setup_uart(bool enable_rs485);
