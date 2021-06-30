@@ -58,11 +58,12 @@
 
 #define DO_UNLOCK_ON_OPEN false
 
-#define RS485_ID uart1
+#define RS485_ID uart0
 #define RS485_TX_PIN 16
 #define RS485_RX_PIN 17
 #define RS485_BUF_LEN 64
 #define RS485_KEY_LEN 10
+#define RS485_READ_TIMEOUT 1000000/96*(RS485_BUF_LEN+1)
 
 typedef enum{
     RS485_K_NONE,

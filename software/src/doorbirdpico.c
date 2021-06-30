@@ -60,65 +60,72 @@ rs485_key_t rs485_key_from_str (char *msg)
 
 void on_rs485_rx()
 {
-    printf("on_rs485_rx... ");
-    while (uart_is_readable(RS485_ID))
+    uint32_t now = time_uzs_32();
+    uint32_t start = now;
+    uint8_t buf[RS485_BUF_LEN];
+    rs485_key_t key;
+    uint8_t p = 0;
+    uint8_t ch = ' ';
+    printf("on_rs485_rx... 0x");
+    
+    while (p < RS485_BUF_LEN && now < start+RS485_READ_TIMEOUT)
     {
-        printf("uart_is_readable(RS485_ID)... ");
-        uint8_t buf[RS485_BUF_LEN];
-        rs485_key_t key;
-        uint8_t p = 0;
-        uint8_t ch = ' ';
-        
-        while (ch != '\n' && p < RS485_BUF_LEN) 
+        now = time_us_32();
+        if (uart_is_readable(RS485_ID))
         {
             ch = uart_getc(RS485_ID);
-            printf("0x%02X (%c)", ch, ch);
+            printf("%02X", ch);
+            if (ch == '\n' || ch == '\r')
+            {
+                buf[p] = '\0';
+                break;
+            }
             buf[p] = ch;
             p++;
         }
-
-        printf("RS485: received '%s' from knxadapter\n", buf);
-
-        key = rs485_key_from_str (buf);
-
-        uint8_t *val = buf+RS485_KEY_LEN+1;
-        switch (key)
-        {
-            case RS485_K_LOCKSTATE:
-            {
-                lock_state_t new_state = LOCK_S_UNKNOWN;
-                if (strcmp(val, lock_state_str[LOCK_S_LOCKED]) == 0)
-                {
-                    new_state = LOCK_S_LOCKED;
-                } else if (strcmp(val, lock_state_str[LOCK_S_UNLOCKED]) == 0)
-                {
-                    new_state = LOCK_S_UNLOCKED;
-                }
-                if (new_state != LOCK_S_UNKNOWN) {
-                    printf("RS485: New lock state set (previous state: %s) -> ", lock_state_str[lock_state]);
-                    set_key_c_color(LOCK_A_ACTUATED);
-                    add_alarm_in_ms(DELAY_ACTUATED_LOCK_MS, actuated_lock_alarm_cb, (void*) new_state, false);
-                    return;
-                }
-                goto unhandled_value;
-                break;
-            }
-            case RS485_K_BUZZER:
-            {
-                int buzzer = atoi(val);
-                printf("RS485: %s Buzzer ", buzzer ? "enable" : "disable");
-                gpio_put(PIN_RELAY_OUT, buzzer);
-                break;
-            }
-            case RS485_K_BRIGHTNESS:
-            default:
-                return;
-        }
     }
-    return;
+    printf("\r\nRS485: received '%s' from knxadapter\n", buf);
 
-unhandled_value:
-    printf("RS485: unhandled value!\n");
+//     key = rs485_key_from_str (buf);
+
+//     uint8_t *val = buf+RS485_KEY_LEN+1;
+//     switch (key)
+//     {
+//         case RS485_K_LOCKSTATE:
+//         {
+//             lock_state_t new_state = LOCK_S_UNKNOWN;
+//             if (strcmp(val, lock_state_str[LOCK_S_LOCKED]) == 0)
+//             {
+//                 new_state = LOCK_S_LOCKED;
+//             } else if (strcmp(val, lock_state_str[LOCK_S_UNLOCKED]) == 0)
+//             {
+//                 new_state = LOCK_S_UNLOCKED;
+//             }
+//             if (new_state != LOCK_S_UNKNOWN) {
+//                 printf("RS485: New lock state set (previous state: %s) -> ", lock_state_str[lock_state]);
+//                 set_key_c_color(LOCK_A_ACTUATED);
+//                 add_alarm_in_ms(DELAY_ACTUATED_LOCK_MS, actuated_lock_alarm_cb, (void*) new_state, false);
+//                 return;
+//             }
+//             goto unhandled_value;
+//             break;
+//         }
+//         case RS485_K_BUZZER:
+//         {
+//             int buzzer = atoi(val);
+//             printf("RS485: %s Buzzer ", buzzer ? "enable" : "disable");
+//             gpio_put(PIN_RELAY_OUT, buzzer);
+//             break;
+//         }
+//         case RS485_K_BRIGHTNESS:
+//         default:
+//             return;
+//     }
+//     return;
+//     printf("on_rs485_rx finished\r\n");
+
+// unhandled_value:
+//     printf("RS485: unhandled value!\n");
 }
 
 void uart_send_code(char *code)
@@ -652,53 +659,63 @@ int setup_pwm()
 int setup_uart(bool enable_rs485)
 {
     // if (!enable_rs485)
-    {
+    // {
     // Initialise UART 0 for Doorbird communication
-        uart_init(UART_ID, BAUD_RATE);
+        // uart_init(UART_ID, BAUD_RATE);
 
-        // Set the GPIO pin mux to the UART - 0 is TX, 1 is RX
-        gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART);
-        gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART);
+        // // Set the GPIO pin mux to the UART - 0 is TX, 1 is RX
+        // gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART);
+        // gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART);
 
-        // Turn off FIFO's - we want to do this character by character
-        uart_set_fifo_enabled(UART_ID, false);
+        // // Turn off FIFO's - we want to do this character by character
+        // uart_set_fifo_enabled(UART_ID, false);
 
-        // Set up a RX interrupt
-        // We need to set up the handler first
-        // Select correct interrupt for the UART we are using
+        // // Set up a RX interrupt
+        // // We need to set up the handler first
+        // // Select correct interrupt for the UART we are using
 
-        // And set up and enable the interrupt handlers
-        irq_set_exclusive_handler(UART0_IRQ, on_uart_rx);
-        irq_set_enabled(UART0_IRQ, true);
+        // // And set up and enable the interrupt handlers
+        // irq_set_exclusive_handler(UART0_IRQ, on_uart_rx);
+        // irq_set_enabled(UART0_IRQ, true);
 
-        // Now enable the UART to send interrupts - RX only
-        uart_set_irq_enables(UART_ID, true, false);
-        printf("UART0 (Doorbird communication) initialized.\r\n");
+        // // Now enable the UART to send interrupts - RX only
+        // uart_set_irq_enables(UART_ID, true, false);
+        // printf("UART0 (Doorbird communication) initialized.\r\n");
 
     // } else {
-        // Disable UART0 RX IRQ
-        // uart_set_irq_enables(UART_ID, false, false);
-        // irq_set_enabled(UART0_IRQ, false);
+    //     // Disable UART0 RX IRQ
+    //     // uart_set_irq_enables(UART_ID, false, false);
+    //     // irq_set_enabled(UART0_IRQ, false);
 
-        // Initialise UART 1 for RS485 link to knxadapter
-        uart_init(RS485_ID, BAUD_RATE);
+    //     // Initialise UART 1 for RS485 link to knxadapter
+    //     uart_init(RS485_ID, BAUD_RATE);
 
-        // Set the GPIO pin mux to the UART - 0 is TX, 1 is RX
+    //     // Set the GPIO pin mux to the UART - 0 is TX, 1 is RX
+    //     gpio_set_function(RS485_TX_PIN, GPIO_FUNC_UART);
+    //     gpio_set_function(RS485_RX_PIN, GPIO_FUNC_UART);
+
+    //     // Set up a RX interrupt
+    //     // We need to set up the handler first
+    //     // Select correct interrupt for the UART we are using
+
+    //     // And set up and enable the interrupt handlers
+    //     irq_set_exclusive_handler(UART1_IRQ, on_rs485_rx);
+    //     irq_set_enabled(UART1_IRQ, true);
+
+    //     // Now enable the UART to send interrupts - RX only
+    //     uart_set_irq_enables(RS485_ID, true, false);
+    //     printf("UART1 (RS485 communication) initialized.\r\n");
+    // }
+
+        uart_init(UART_ID, BAUD_RATE);
         gpio_set_function(RS485_TX_PIN, GPIO_FUNC_UART);
         gpio_set_function(RS485_RX_PIN, GPIO_FUNC_UART);
-
-        // Set up a RX interrupt
-        // We need to set up the handler first
-        // Select correct interrupt for the UART we are using
-
-        // And set up and enable the interrupt handlers
-        irq_set_exclusive_handler(UART1_IRQ, on_rs485_rx);
-        irq_set_enabled(UART1_IRQ, true);
-
-        // Now enable the UART to send interrupts - RX only
-        uart_set_irq_enables(RS485_ID, true, false);
-        printf("UART1 (RS485 communication) initialized.\r\n");
-    }
+        uart_set_hw_flow(UART_ID, false, false);
+        uart_set_fifo_enabled(UART_ID, false);
+        irq_set_exclusive_handler(UART0_IRQ, on_rs485_rx);
+        irq_set_enabled(UART0_IRQ, true);
+        uart_set_irq_enables(UART_ID, true, false);
+        printf("UART0 (rs485) initialized.\r\n");
 }
 
 int main()
