@@ -62,7 +62,7 @@ void on_rs485_rx()
 {
     uint32_t now = time_us_32();
     uint32_t start = now;
-    uint8_t buf[RS485_BUF_LEN];
+    uint8_t buf[RS485_BUF_LEN+1];
     rs485_key_t key;
     uint8_t p = 0;
     uint8_t ch = ' ';
@@ -78,13 +78,13 @@ void on_rs485_rx()
             printf("%02X", ch);
             if (ch == '\n' || ch == '\r')
             {
-                buf[p] = '\0';
+                p++;
                 break;
             }
-            buf[p] = ch;
-            p++;
+            buf[p++] = ch;
         }
     }
+    buf[p] = '\0';
     printf("\r\nRS485: received '%s' from knxadapter\n", buf);
 
     key = rs485_key_from_str (buf);
