@@ -44,7 +44,7 @@ rs485_key_t rs485_key_from_str (char *msg)
         printf("RS485: buffer too short!\n");
         return key;
     }
-    if (msg[RS485_KEY_LEN+1] != '=')
+    if (msg[RS485_KEY_LEN] != '=')
     {
         printf("RS485: can't parse KEY=VALUE command!\n");
         return key;
@@ -60,12 +60,13 @@ rs485_key_t rs485_key_from_str (char *msg)
 
 void on_rs485_rx()
 {
-    uint32_t now = time_uzs_32();
+    uint32_t now = time_us_32();
     uint32_t start = now;
     uint8_t buf[RS485_BUF_LEN];
     rs485_key_t key;
     uint8_t p = 0;
     uint8_t ch = ' ';
+    uart_set_irq_enables(RS485_ID, false, false);
     printf("on_rs485_rx... 0x");
     
     while (p < RS485_BUF_LEN && now < start+RS485_READ_TIMEOUT)
@@ -86,46 +87,52 @@ void on_rs485_rx()
     }
     printf("\r\nRS485: received '%s' from knxadapter\n", buf);
 
-//     key = rs485_key_from_str (buf);
+    key = rs485_key_from_str (buf);
 
-//     uint8_t *val = buf+RS485_KEY_LEN+1;
-//     switch (key)
-//     {
-//         case RS485_K_LOCKSTATE:
-//         {
-//             lock_state_t new_state = LOCK_S_UNKNOWN;
-//             if (strcmp(val, lock_state_str[LOCK_S_LOCKED]) == 0)
-//             {
-//                 new_state = LOCK_S_LOCKED;
-//             } else if (strcmp(val, lock_state_str[LOCK_S_UNLOCKED]) == 0)
-//             {
-//                 new_state = LOCK_S_UNLOCKED;
-//             }
-//             if (new_state != LOCK_S_UNKNOWN) {
-//                 printf("RS485: New lock state set (previous state: %s) -> ", lock_state_str[lock_state]);
-//                 set_key_c_color(LOCK_A_ACTUATED);
-//                 add_alarm_in_ms(DELAY_ACTUATED_LOCK_MS, actuated_lock_alarm_cb, (void*) new_state, false);
-//                 return;
-//             }
-//             goto unhandled_value;
-//             break;
-//         }
-//         case RS485_K_BUZZER:
-//         {
-//             int buzzer = atoi(val);
-//             printf("RS485: %s Buzzer ", buzzer ? "enable" : "disable");
-//             gpio_put(PIN_RELAY_OUT, buzzer);
-//             break;
-//         }
-//         case RS485_K_BRIGHTNESS:
-//         default:
-//             return;
-//     }
-//     return;
-//     printf("on_rs485_rx finished\r\n");
+    uint8_t *val = buf+RS485_KEY_LEN+1;
+    switch (key)
+    {
+        case RS485_K_LOCKSTATE:
+        {
+            lock_state_t new_state = LOCK_S_UNKNOWN;
+            if (strcmp(val, lock_state_str[LOCK_S_LOCKED]) == 0)
+            {
+                new_state = LOCK_S_LOCKED;
+            } else if (strcmp(val, lock_state_str[LOCK_S_UNLOCKED]) == 0)
+            {
+                new_state = LOCK_S_UNLOCKED;
+            }
+            if (new_state != LOCK_S_UNKNOWN) {
+                printf("RS485: New lock state set (previous state: %s) -> ", lock_state_str[lock_state]);
+                set_key_c_color(LOCK_A_ACTUATED);
+                add_alarm_in_ms(DELAY_ACTUATED_LOCK_MS, actuated_lock_alarm_cb, (void*) new_state, false);
+                goto out;
+            }
+            goto unhandled_value;
+            break;
+        }
+        case RS485_K_BUZZER:
+        {
+            int buzzer = atoi(val);
+            printf("RS485: %s Buzzer ", buzzer ? "enable" : "disable");
+            gpio_put(PIN_RELAY_OUT, buzzer);
+            break;
+        }
+        case RS485_K_NONE:
+            goto out;
+        case RS485_K_BRIGHTNESS:
+        default:
+            printf("command '%s' (%d) from knxadapter unhandled\n", rs485_key_str[key], key);
+            goto out;
+    }
+    goto out;
 
-// unhandled_value:
-//     printf("RS485: unhandled value!\n");
+unhandled_value:
+    printf("RS485: unhandled value '%s'!\n", val);
+    goto out;
+
+out:
+    uart_set_irq_enables(RS485_ID, true, false);
 }
 
 void uart_send_code(char *code)

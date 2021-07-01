@@ -79,7 +79,7 @@ typedef enum{
 static const char *rs485_key_str[] = {
     "",
     " LOCKSTATE",
-    "LOCKACTION"
+    "LOCKACTION",
     "    BUZZER",
     "BRIGHTNESS",
     "  DOORREED",
