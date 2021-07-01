@@ -668,61 +668,47 @@ int setup_uart(bool enable_rs485)
     // if (!enable_rs485)
     // {
     // Initialise UART 0 for Doorbird communication
-        // uart_init(UART_ID, BAUD_RATE);
+        uart_init(UART_ID, BAUD_RATE);
 
-        // // Set the GPIO pin mux to the UART - 0 is TX, 1 is RX
-        // gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART);
-        // gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART);
+        // Set the GPIO pin mux to the UART - 0 is TX, 1 is RX
+        gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART);
+        gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART);
 
-        // // Turn off FIFO's - we want to do this character by character
-        // uart_set_fifo_enabled(UART_ID, false);
+        // Turn off FIFO's - we want to do this character by character
+        uart_set_fifo_enabled(UART_ID, false);
 
-        // // Set up a RX interrupt
-        // // We need to set up the handler first
-        // // Select correct interrupt for the UART we are using
+        // Set up a RX interrupt
+        // We need to set up the handler first
+        // Select correct interrupt for the UART we are using
 
-        // // And set up and enable the interrupt handlers
-        // irq_set_exclusive_handler(UART0_IRQ, on_uart_rx);
-        // irq_set_enabled(UART0_IRQ, true);
+        // And set up and enable the interrupt handlers
+        irq_set_exclusive_handler(UART1_IRQ, on_uart_rx);
+        irq_set_enabled(UART1_IRQ, true);
 
-        // // Now enable the UART to send interrupts - RX only
-        // uart_set_irq_enables(UART_ID, true, false);
-        // printf("UART0 (Doorbird communication) initialized.\r\n");
+        // Now enable the UART to send interrupts - RX only
+        uart_set_irq_enables(UART_ID, true, false);
+        printf("UART0 (Doorbird communication) initialized.\r\n");
 
     // } else {
     //     // Disable UART0 RX IRQ
     //     // uart_set_irq_enables(UART_ID, false, false);
     //     // irq_set_enabled(UART0_IRQ, false);
 
-    //     // Initialise UART 1 for RS485 link to knxadapter
-    //     uart_init(RS485_ID, BAUD_RATE);
+        // Initialise UART 1 for RS485 link to knxadapter
+        uart_init(RS485_ID, BAUD_RATE);
 
-    //     // Set the GPIO pin mux to the UART - 0 is TX, 1 is RX
-    //     gpio_set_function(RS485_TX_PIN, GPIO_FUNC_UART);
-    //     gpio_set_function(RS485_RX_PIN, GPIO_FUNC_UART);
-
-    //     // Set up a RX interrupt
-    //     // We need to set up the handler first
-    //     // Select correct interrupt for the UART we are using
-
-    //     // And set up and enable the interrupt handlers
-    //     irq_set_exclusive_handler(UART1_IRQ, on_rs485_rx);
-    //     irq_set_enabled(UART1_IRQ, true);
-
-    //     // Now enable the UART to send interrupts - RX only
-    //     uart_set_irq_enables(RS485_ID, true, false);
-    //     printf("UART1 (RS485 communication) initialized.\r\n");
-    // }
-
-        uart_init(UART_ID, BAUD_RATE);
         gpio_set_function(RS485_TX_PIN, GPIO_FUNC_UART);
         gpio_set_function(RS485_RX_PIN, GPIO_FUNC_UART);
-        uart_set_hw_flow(UART_ID, false, false);
-        uart_set_fifo_enabled(UART_ID, false);
+
+        uart_set_hw_flow(RS485_ID, false, false);
+        uart_set_fifo_enabled(RS485_ID, false);
+
         irq_set_exclusive_handler(UART0_IRQ, on_rs485_rx);
         irq_set_enabled(UART0_IRQ, true);
-        uart_set_irq_enables(UART_ID, true, false);
-        printf("UART0 (rs485) initialized.\r\n");
+
+        uart_set_irq_enables(RS485_ID, true, false);
+        printf("UART1 (RS485 communication) initialized.\r\n");
+    // }
 }
 
 int main()
