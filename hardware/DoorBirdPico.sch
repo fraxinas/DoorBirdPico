@@ -369,12 +369,6 @@ F 3 "" H 8200 5300 50  0001 C CNN
 	1    8200 5300
 	1    0    0    -1  
 $EndComp
-Wire Wire Line
-	8450 4000 7850 4000
-Connection ~ 7850 4000
-Wire Wire Line
-	8550 3900 7850 3900
-Connection ~ 7850 3900
 Connection ~ 8300 1600
 Wire Wire Line
 	8300 1200 8300 1600
@@ -659,7 +653,7 @@ Connection ~ 10000 3800
 Wire Wire Line
 	8950 4450 8550 4450
 Wire Wire Line
-	8550 3900 8550 4450
+	8550 4000 8550 4450
 Wire Wire Line
 	8450 4750 8950 4750
 Wire Wire Line
@@ -668,42 +662,21 @@ Wire Wire Line
 	9500 3200 9500 3400
 Connection ~ 7850 3200
 Wire Wire Line
-	7850 3400 8650 3400
-Wire Wire Line
-	8650 3400 8650 3500
-Wire Wire Line
-	8650 3500 8800 3500
-Connection ~ 7850 3400
-Wire Wire Line
-	7850 3500 8550 3500
-Wire Wire Line
-	8550 3500 8550 3600
-Wire Wire Line
 	8550 3600 9200 3600
-Connection ~ 7850 3500
 Wire Wire Line
-	7850 3600 8450 3600
+	8500 3600 8500 3700
 Wire Wire Line
-	8450 3600 8450 3700
+	8500 3700 9600 3700
 Wire Wire Line
-	8450 3700 9600 3700
-Connection ~ 7850 3600
+	7850 3700 8300 3700
 Wire Wire Line
-	7850 3700 8350 3700
-Wire Wire Line
-	8350 3700 8350 3800
-Wire Wire Line
-	8350 3800 8650 3800
-Wire Wire Line
-	8650 3800 8650 4550
-Wire Wire Line
-	8650 4550 8950 4550
+	8300 4550 8950 4550
 Connection ~ 7850 3700
 Wire Wire Line
-	8650 4550 8650 4650
+	8300 4550 8300 4650
 Wire Wire Line
-	8650 4650 8950 4650
-Connection ~ 8650 4550
+	8300 4650 8950 4650
+Connection ~ 8300 4550
 Wire Wire Line
 	9750 4450 9850 4450
 Wire Wire Line
@@ -1346,4 +1319,31 @@ Wire Wire Line
 	9800 3050 9800 3000
 Wire Wire Line
 	9800 3000 9700 3000
+Connection ~ 7850 3600
+Wire Wire Line
+	7850 3600 8500 3600
+Wire Wire Line
+	7850 3500 8250 3500
+Wire Wire Line
+	8250 3500 8450 4000
+Connection ~ 7850 3500
+Connection ~ 7850 3400
+Wire Wire Line
+	8550 3600 8300 4000
+Wire Wire Line
+	8300 4000 7850 4000
+Connection ~ 7850 4000
+Wire Wire Line
+	7850 3900 8250 3900
+Wire Wire Line
+	8250 3900 8500 3500
+Connection ~ 7850 3900
+Wire Wire Line
+	8500 3500 8800 3500
+Wire Wire Line
+	8300 3400 8550 4000
+Wire Wire Line
+	7850 3400 8300 3400
+Wire Wire Line
+	8300 3700 8300 4550
 $EndSCHEMATC
