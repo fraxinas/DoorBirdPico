@@ -143,10 +143,13 @@ void uart_send_code(char *code)
 
 void rs485_send_msg(rs485_key_t key, const char* val)
 {
-    printf("RS485: send msg");
+    printf("RS485: send msg ");
+    gpio_put(RS485_DRIVER_ENABLE_PIN, 1);
     char msg[RS485_BUF_LEN];
     snprintf (msg, RS485_BUF_LEN, "%s=%s\r\n", rs485_key_str[key], val);
     uart_puts(RS485_ID, msg);
+    printf("%s", msg);
+    gpio_put(RS485_DRIVER_ENABLE_PIN, 0);
 }
 
 uint8_t get_active_led_count()
@@ -568,7 +571,8 @@ int setup_gpio()
         1 << PIN_C_GREEN |
         1 << PIN_C_RED |
         1 << PIN_RELAY_OUT |
-        1 << PIN_STATUS);
+        1 << PIN_STATUS |
+        1 << RS485_DRIVER_ENABLE_PIN);
     gpio_set_dir(PIN_RELAY_OUT, GPIO_OUT);
     gpio_set_dir(PIN_A_BLUE, GPIO_OUT);
     gpio_set_dir(PIN_A_GREEN, GPIO_OUT);
@@ -580,6 +584,7 @@ int setup_gpio()
     gpio_set_dir(PIN_C_GREEN, GPIO_OUT);
     gpio_set_dir(PIN_C_RED, GPIO_OUT);
     gpio_set_dir(PIN_STATUS, GPIO_OUT);
+    gpio_set_dir(RS485_DRIVER_ENABLE_PIN, GPIO_OUT);
 
     gpio_put(PIN_A_BLUE, 1);
     gpio_put(PIN_A_GREEN, 1);
@@ -600,6 +605,8 @@ int setup_gpio()
     gpio_pull_down(PIN_REED_LETTER);
 
     gpio_put(PIN_RELAY_OUT, 0);
+    gpio_put(RS485_DRIVER_ENABLE_PIN, 0);
+
     door_state = DOOR_UNKNOWN;
     lock_state = LOCK_S_UNKNOWN;
 }
