@@ -8,7 +8,7 @@
 #include "hardware/pwm.h"
 #include "hardware/structs/pwm.h"
 
-#define UART_ID uart1
+#define UART_ID uart0
 #define BAUD_RATE 9600
 #define UART_TX_PIN 0
 #define UART_RX_PIN 1
@@ -28,8 +28,8 @@
 #define PIN_B_RED 14
 
 #define PIN_C_KEY 22
-#define PIN_C_BLUE 21
-#define PIN_C_GREEN 20
+#define PIN_C_BLUE 17
+#define PIN_C_GREEN 16
 #define PIN_C_RED 19
 
 #define PIN_RELAY_OUT 28
@@ -58,9 +58,9 @@
 
 #define DO_UNLOCK_ON_OPEN false
 
-#define RS485_ID uart0
-#define RS485_TX_PIN 16
-#define RS485_RX_PIN 17
+#define RS485_ID uart1
+#define RS485_TX_PIN 20
+#define RS485_RX_PIN 21
 #define RS485_DRIVER_ENABLE_PIN 18
 #define RS485_BUF_LEN 64
 #define RS485_KEY_LEN 10
