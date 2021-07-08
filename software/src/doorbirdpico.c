@@ -170,10 +170,8 @@ void on_rs485_rx()
                     uint8_t val_init = atoi(valpos);
                     pwm_leds[pin_idx].val_init = val_init;
                     // printf("[%d]=%d\t", pin_idx, val_init);
-                    if (val_init) {
-                        uint16_t level = get_gamma(val_init);
-                        pwm_set_gpio_level(pwm_leds[pin_idx].led_out, level);
-                    }
+                    uint16_t level = get_gamma(val_init);
+                    pwm_set_gpio_level(pwm_leds[pin_idx].led_out, level);
                     bndpos = NULL;
                 }
 
@@ -280,15 +278,15 @@ void key_callback(uint gpio)
         }
         if (p.active)
         {
-            // if (pwm_hw->inte & 1u << p.slice_num == false)
+            pwm_leds[i].fade = p.val_init;
+            if ((pwm_hw->inte & 1u << p.slice_num) == false)
             {
                 printf("initializing pwm slice %d for LED on pin %d\r\n", p.slice_num, p.led_out);
-                pwm_leds[i].fade = p.val_init;
                 pwm_set_irq_enabled(p.slice_num, true);
                 pwm_init(p.slice_num, &pwm_conf, true);
-            } /* else {
+            } else {
                 printf("don't re-init pwm slice %d for LED on pin %d because it's already running!\r\n", p.slice_num, p.led_out);
-            } */
+            }
         }
     }
 }
@@ -305,18 +303,18 @@ void on_pwm_wrap()
         uint16_t level;
         bool do_clear_slice = true;
 
-        printf("[%d]=", i);
+        // printf("[%d]=", i);
 
         if (!p.led_out)
             continue;
 
-        printf("slice=%i ", p.slice_num);
+        // printf("slice=%i ", p.slice_num);
 
         for (uint8_t j = 0; j < MAX_PWM_LEDS; j++)
         {
             if (p.slice_num == pwm_leds[j].slice_num && i != j && pwm_leds[j].active)
             {
-                printf("don't clear slice %d on led [%d] because [%d] is still active\r\n", p.slice_num, i, j);
+                printf(" {X} ", p.slice_num, i, j);
                 do_clear_slice = false;
             }
         }
@@ -327,8 +325,9 @@ void on_pwm_wrap()
         }
 
         if (p.active) {
+            printf("[%d]: ", i);
             int8_t dir = p.val_end > p.val_init ? (+1) : (-1);
-            printf("cycle=%u fade=%u dir=%d  ", pwm_leds[i].cycle, pwm_leds[i].fade, dir);
+            printf("c=%u f=%u %d  ", pwm_leds[i].cycle, pwm_leds[i].fade, dir);
 
             if (pwm_leds[i].cycle % 2 == 0)
             {
@@ -696,7 +695,7 @@ int setup_pwm()
 
     pwm_leds[0].key_in = PIN_A_KEY;
     pwm_leds[0].led_out = PIN_A_RED;
-    pwm_leds[0].val_init = 0;
+    pwm_leds[0].val_init = 255;
     pwm_leds[0].val_end = 0;
 
     pwm_leds[1].key_in = PIN_A_KEY;
@@ -706,17 +705,17 @@ int setup_pwm()
 
     pwm_leds[2].key_in = PIN_A_KEY;
     pwm_leds[2].led_out = PIN_A_BLUE;
-    pwm_leds[2].val_init = 0;
+    pwm_leds[2].val_init = 255;
     pwm_leds[2].val_end = 0;
 
     pwm_leds[3].key_in = PIN_B_KEY;
     pwm_leds[3].led_out = PIN_B_RED;
-    pwm_leds[3].val_init = 220;
+    pwm_leds[3].val_init = 200;
     pwm_leds[3].val_end = 20;
 
     pwm_leds[4].key_in = PIN_B_KEY;
     pwm_leds[4].led_out = PIN_B_GREEN;
-    pwm_leds[4].val_init = 0;
+    pwm_leds[4].val_init = 255;
     pwm_leds[4].val_end = 0;
 
     pwm_leds[5].key_in = PIN_B_KEY;
@@ -770,7 +769,6 @@ int setup_pwm()
 uint16_t get_gamma(uint8_t value)
 {
     value = 255 - (value * (global_brightness/255.0));
-    printf("=%d\n", value);
     uint16_t gamma = pwm_gamma[value];
     return gamma;
 }
