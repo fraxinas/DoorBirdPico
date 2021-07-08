@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include "pico/stdlib.h"
 #include "pico/time.h"
+#include "pico/multicore.h"
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
 #include "hardware/pwm.h"
@@ -243,6 +244,9 @@ int64_t lock_key_pressed_cb(alarm_id_t id, void *user_data);
 
 // interrupt service routine, debouncer and function router for all inputs
 void sensor_input(uint gpio, uint32_t events);
+
+// parse & handle RS485 command on core1
+bool mc_handle_rs485_command(char *cmd);
 
 // Setup function for interrupts
 int setup_irq();

@@ -63,12 +63,11 @@ void on_rs485_rx()
     uint32_t now = time_us_32();
     uint32_t start = now;
     uint8_t buf[RS485_BUF_LEN+1];
-    rs485_key_t key;
     uint8_t p = 0;
     uint8_t ch = ' ';
     uart_set_irq_enables(RS485_ID, false, false);
-    printf("on_rs485_rx... 0x");
-    
+    printf("on_rs485_rx...");
+
     while (p < RS485_BUF_LEN && now < start+RS485_READ_TIMEOUT)
     {
         now = time_us_32();
@@ -77,9 +76,10 @@ void on_rs485_rx()
             ch = uart_getc(RS485_ID);
             if (ch == 0)
             {
-                goto out;
+                uart_set_irq_enables(RS485_ID, true, false);
+                return;
             }
-            printf("%02X", ch);
+            // printf("%02X", ch);
             if (ch == '\n' || ch == '\r')
             {
                 p++;
@@ -89,6 +89,17 @@ void on_rs485_rx()
         }
     }
     buf[p] = '\0';
+
+    multicore_fifo_push_blocking((uintptr_t) &mc_handle_rs485_command);
+    multicore_fifo_push_blocking((uintptr_t) &buf);
+
+    int ret = multicore_fifo_pop_blocking();
+    uart_set_irq_enables(RS485_ID, true, false);
+}
+
+bool mc_handle_rs485_command(char *buf)
+{
+    rs485_key_t key;
     printf("\r\nRS485: received '%s' from knxadapter\n", buf);
 
     key = rs485_key_from_str (buf);
@@ -110,9 +121,10 @@ void on_rs485_rx()
                 printf("RS485: New lock state set (previous state: %s) -> ", lock_state_str[lock_state]);
                 set_key_c_color(LOCK_A_ACTUATED);
                 add_alarm_in_ms(DELAY_ACTUATED_LOCK_MS, actuated_lock_alarm_cb, (void*) new_state, false);
-                goto out;
+                return true;
             }
-            goto unhandled_value;
+            printf("RS485: unhandled value '%s'!\n", val);
+            return false;
             break;
         }
         case RS485_K_BUZZER:
@@ -124,8 +136,7 @@ void on_rs485_rx()
         }
         case RS485_K_NONE:
         {
-            goto out;
-            break;
+            return false;
         }
         case RS485_K_BRIGHTNESS:
         {
@@ -195,16 +206,9 @@ void on_rs485_rx()
         }
         default:
             printf("command '%s' (%d) from knxadapter unhandled\n", rs485_key_str[key], key);
-            goto out;
+            return false;
     }
-    goto out;
-
-unhandled_value:
-    printf("RS485: unhandled value '%s'!\n", val);
-    goto out;
-
-out:
-    uart_set_irq_enables(RS485_ID, true, false);
+    return true;
 }
 
 void uart_send_code(char *code)
@@ -813,16 +817,33 @@ int setup_uart(bool enable_rs485)
     printf("UART1 (RS485 communication) initialized.\r\n");
 }
 
+#define FLAG_VALUE 123
+
+void core1_dispatcher() {
+    while (1) {
+        // Function pointer is passed to us via the FIFO
+        // We have one incoming int32_t as a parameter, and will provide an
+        // int32_t return value by simply pushing it back on the FIFO
+        // which also indicates the result is ready.
+        int32_t (*func)() = (int32_t(*)()) multicore_fifo_pop_blocking();
+        int32_t p = multicore_fifo_pop_blocking();
+        int32_t result = (*func)(p);
+        multicore_fifo_push_blocking(result);
+    }
+}
+
 int main()
 {
     setup_gpio();
+
     setup_irq();
     setup_uart(false);
-
-    sleep_ms(2000);
+    sleep_ms(6000);
     setup_pwm();
 
     gpio_put(PIN_STATUS, 1);
+
+    multicore_launch_core1(core1_dispatcher);
 
     // Everything after this point happens in the interrupt handlers,
     // so we can chill here
