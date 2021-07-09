@@ -5,7 +5,7 @@ void on_uart_rx()
     printf("on_uart_rx... ");
     if (uart_is_readable(UART_ID))
         on_doorbird_rx();
-    
+
     if (uart_is_readable(RS485_ID))
         on_rs485_rx();
 }
@@ -699,7 +699,7 @@ int setup_pwm()
 
     pwm_leds[0].key_in = PIN_A_KEY;
     pwm_leds[0].led_out = PIN_A_RED;
-    pwm_leds[0].val_init = 255;
+    pwm_leds[0].val_init = 0;
     pwm_leds[0].val_end = 0;
 
     pwm_leds[1].key_in = PIN_A_KEY;
@@ -709,7 +709,7 @@ int setup_pwm()
 
     pwm_leds[2].key_in = PIN_A_KEY;
     pwm_leds[2].led_out = PIN_A_BLUE;
-    pwm_leds[2].val_init = 255;
+    pwm_leds[2].val_init = 0;
     pwm_leds[2].val_end = 0;
 
     pwm_leds[3].key_in = PIN_B_KEY;
@@ -719,7 +719,7 @@ int setup_pwm()
 
     pwm_leds[4].key_in = PIN_B_KEY;
     pwm_leds[4].led_out = PIN_B_GREEN;
-    pwm_leds[4].val_init = 255;
+    pwm_leds[4].val_init = 0;
     pwm_leds[4].val_end = 0;
 
     pwm_leds[5].key_in = PIN_B_KEY;
