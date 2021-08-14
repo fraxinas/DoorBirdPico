@@ -57,7 +57,7 @@
 #define PWM_LED_INIT_DIV 4.0f
 #define PWM_LED_CYCLES 8
 
-#define DO_UNLOCK_ON_OPEN false
+#define DO_UNLOCK_ON_OPEN true
 
 #define RS485_ID uart1
 #define RS485_TX_PIN 20

@@ -530,7 +530,6 @@ int64_t lock_key_pressed_cb(alarm_id_t id, void *user_data)
     else
     {
         printf("short pressed -> LOCK delayed ");
-        send_locking_action(LOCK_A_LOCKING);
         add_alarm_in_ms(DELAY_LEAVING_LOCK_MS, delayed_lock_alarm_cb, NULL, false);
     }
 
