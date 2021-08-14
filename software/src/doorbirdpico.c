@@ -100,6 +100,9 @@ void on_rs485_rx()
 bool mc_handle_rs485_command(char *buf)
 {
     rs485_key_t key;
+    if (strlen(buf) == 1)
+        return false;
+
     printf("\r\nRS485: received '%s' from knxadapter\n", buf);
 
     key = rs485_key_from_str (buf);
@@ -222,8 +225,8 @@ void rs485_send_msg(rs485_key_t key, const char* val)
     printf("RS485: send msg ");
     gpio_put(RS485_DRIVER_ENABLE_PIN, 1);
     char msg[RS485_BUF_LEN];
-    snprintf (msg, RS485_BUF_LEN, "%s=%s\r\n", rs485_key_str[key], val);
-    uart_puts(RS485_ID, msg);
+    snprintf (msg, RS485_BUF_LEN, "%s=%s\r\n\r\n", rs485_key_str[key], val);
+    uart_write_blocking	(RS485_ID, msg, strlen(msg));
     printf("%s", msg);
     gpio_put(RS485_DRIVER_ENABLE_PIN, 0);
 }
@@ -814,6 +817,7 @@ int setup_uart(bool enable_rs485)
     irq_set_enabled(UART1_IRQ, true);
 
     uart_set_irq_enables(RS485_ID, true, false);
+    uart_set_translate_crlf(RS485_ID, true);
     printf("UART1 (RS485 communication) initialized.\r\n");
 }
 
