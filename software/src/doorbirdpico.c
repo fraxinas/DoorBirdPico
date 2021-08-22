@@ -543,9 +543,16 @@ void sensor_input(uint gpio, uint32_t events)
 
     if (now - last_irq_ts > DEBOUNCE_MS * 1000)
     {
-        printf("sensor_input(%d, %02X) ...", gpio, events);
-        busy_wait_us(1000);
+        bool beginVal = gpio_get(gpio);
+        printf("sensor_input(%d, %02X)=%d...", gpio, events, beginVal);
+        busy_wait_us(3000);
         bool RisingEdge = gpio_get(gpio);
+        if (beginVal != RisingEdge || events == 0x0C)
+        {
+            printf(" was a glitch! ignored.\r\n");
+            last_irq_ts = now;
+            return;
+        }
         bool FallingEdge = !RisingEdge;
         printf(" is %s\t", RisingEdge ? "RisingEdge" : "FallingEdge");
 
@@ -558,6 +565,8 @@ void sensor_input(uint gpio, uint32_t events)
             break;
         case PIN_C_KEY:
             printf("lock toggle pressed in state %s ", lock_state_str[lock_state]);
+            if (!RisingEdge)
+                break;
             if (lock_state != LOCK_S_UNLOCKED)
             {
                 printf(" -> UNLOCK (send %s)\r\n", UNLOCK_CODE);
