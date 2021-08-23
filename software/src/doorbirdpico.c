@@ -66,7 +66,7 @@ void on_rs485_rx()
     uint8_t p = 0;
     uint8_t ch = ' ';
     uart_set_irq_enables(RS485_ID, false, false);
-    printf("on_rs485_rx...");
+    //printf("on_rs485_rx...");
 
     while (p < RS485_BUF_LEN && now < start+RS485_READ_TIMEOUT)
     {
@@ -135,6 +135,8 @@ bool mc_handle_rs485_command(char *buf)
             int buzzer = atoi(val);
             printf("RS485: %s Buzzer ", buzzer ? "enable" : "disable");
             gpio_put(PIN_RELAY_OUT, buzzer);
+            if (buzzer)
+                add_alarm_in_ms(BUZZER_SAFETY_MS, buzzer_alarm_cb, NULL, false);
             break;
         }
         case RS485_K_NONE:
@@ -457,8 +459,10 @@ void set_key_c_color(lock_action_t action)
 
 int64_t buzzer_alarm_cb(alarm_id_t id, void *user_data)
 {
-    printf("buzzer_alarm_cb -> Buzzer off!\r\n");
-    gpio_put(PIN_RELAY_OUT, 0);
+    if (gpio_get(PIN_RELAY_OUT)) {
+        printf("buzzer_alarm_cb -> Buzzer off!\r\n");
+        gpio_put(PIN_RELAY_OUT, 0);
+    }
     return 0;
 }
 
@@ -484,6 +488,7 @@ int64_t actuated_lock_alarm_cb(alarm_id_t id, void *user_data)
         {
             printf("Door got unlocked & Relay 1 still on -> Buzzer on!\r\n");
             gpio_put(PIN_RELAY_OUT, 1);
+            add_alarm_in_ms(BUZZER_SAFETY_MS, buzzer_alarm_cb, NULL, false);
         }
         if (lock_state == LOCK_S_WAITING_FOR_UNLOCK)
         {
@@ -603,6 +608,7 @@ void sensor_input(uint gpio, uint32_t events)
                 if (lock_state == LOCK_S_UNLOCKED)
                 {
                     printf("Relay 1 rising -> Buzzer on!\r\n");
+                    add_alarm_in_ms(BUZZER_SAFETY_MS, buzzer_alarm_cb, NULL, false);
                     gpio_put(PIN_RELAY_OUT, 1);
                 }
                 else
